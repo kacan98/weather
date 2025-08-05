@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npx sv:*)",
+      "WebFetch(domain:svelte.dev)",
+      "Bash(npx tailwindcss init:*)"
+    ],
+    "deny": []
+  }
+}
