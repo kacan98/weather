@@ -1,96 +1,99 @@
 import { json } from '@sveltejs/kit';
+import { WEATHER_API_KEY } from '$env/static/private';
 import type { RequestHandler } from './$types';
 
 interface WeatherRequest {
-	start: { lat: number; lng: number };
-	end: { lat: number; lng: number };
-	departureTime?: string;
+	lat: number;
+	lng: number;
+	days?: number;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
-		const { start, end, departureTime }: WeatherRequest = await request.json();
+		const { lat, lng, days = 3 }: WeatherRequest = await request.json();
 		
-		// First, get fresh tokens from Morecast
-		const authResponse = await fetch('https://morecast.com/en/plan-your-route');
-		const authHTML = await authResponse.text();
-		
-		console.log('Auth response status:', authResponse.status);
-		console.log('Auth response headers:', Object.fromEntries(authResponse.headers.entries()));
-		console.log('HTML length:', authHTML.length);
-		console.log('HTML snippet:', authHTML.substring(0, 500));
-		
-		// Try multiple CSRF token patterns
-		let csrfToken = null;
-		
-		// Pattern 1: name="_token" value="..."
-		let csrfMatch = authHTML.match(/name="_token"\s+value="([^"]+)"/);
-		if (csrfMatch) csrfToken = csrfMatch[1];
-		
-		// Pattern 2: meta name="csrf-token" content="..."
-		if (!csrfToken) {
-			csrfMatch = authHTML.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-			if (csrfMatch) csrfToken = csrfMatch[1];
+		if (!WEATHER_API_KEY) {
+			return json({
+				success: false,
+				error: 'Please set your WeatherAPI.com API key in environment variables'
+			}, { status: 500 });
 		}
 		
-		// Pattern 3: window.Laravel = {"csrfToken":"..."}
-		if (!csrfToken) {
-			csrfMatch = authHTML.match(/window\.Laravel\s*=\s*{[^}]*"csrfToken"\s*:\s*"([^"]+)"/);
-			if (csrfMatch) csrfToken = csrfMatch[1];
+		console.log(`Fetching weather for coordinates: ${lat}, ${lng}`);
+		
+		// WeatherAPI.com endpoint for forecast with 15-minute intervals
+		const weatherUrl = `https://api.weatherapi.com/v1/forecast.json?key=${WEATHER_API_KEY}&q=${lat},${lng}&days=${days}&aqi=no&alerts=yes`;
+		
+		const response = await fetch(weatherUrl);
+		
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('WeatherAPI error:', response.status, errorText);
+			return json({
+				success: false,
+				error: `WeatherAPI error: ${response.status} - ${errorText}`
+			}, { status: response.status });
 		}
 		
-		// Pattern 4: _token in script tags
-		if (!csrfToken) {
-			csrfMatch = authHTML.match(/"_token"\s*:\s*"([^"]+)"/);
-			if (csrfMatch) csrfToken = csrfMatch[1];
-		}
+		const weatherData = await response.json();
 		
-		console.log('Found CSRF token:', csrfToken);
-		
-		if (!csrfToken) {
-			// Log more details for debugging
-			console.log('Full HTML for debugging:', authHTML);
-			throw new Error('Could not get CSRF token');
-		}
-		
-		// Get cookies from auth response
-		const cookies = authResponse.headers.get('set-cookie') || '';
-		
-		// Prepare route request data
-		const formData = new URLSearchParams();
-		formData.append('mode', 'bicycle');
-		formData.append('locations', `${start.lng}+${start.lat},${end.lng}+${end.lat}`);
-		formData.append('utc_offset', '-21600');
-		formData.append('depart_type', 'now');
-		formData.append('start_date', new Date().toLocaleDateString('en-GB'));
-		formData.append('start_time', departureTime || '09:00');
-		
-		// Make request to Morecast API
-		const weatherResponse = await fetch('https://morecast.com/en/api/plan-route', {
-			method: 'POST',
-			headers: {
-				'Accept': '*/*',
-				'Accept-Language': 'en,cs;q=0.9,da;q=0.8,ru;q=0.7,sv;q=0.6',
-				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-				'Origin': 'https://morecast.com',
-				'Referer': 'https://morecast.com/en/plan-your-route',
-				'X-CSRF-TOKEN': csrfToken,
-				'X-Requested-With': 'XMLHttpRequest',
-				'Cookie': cookies,
-				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+		// Transform the data for bike-friendly format
+		const bikeWeatherData = {
+			location: {
+				name: weatherData.location.name,
+				country: weatherData.location.country,
+				lat: weatherData.location.lat,
+				lng: weatherData.location.lon
 			},
-			body: formData.toString()
-		});
-		
-		if (!weatherResponse.ok) {
-			throw new Error(`Morecast API error: ${weatherResponse.status}`);
-		}
-		
-		const weatherData = await weatherResponse.json();
+			current: {
+				temp_c: weatherData.current.temp_c,
+				condition: weatherData.current.condition.text,
+				wind_kph: weatherData.current.wind_kph,
+				wind_dir: weatherData.current.wind_dir,
+				wind_degree: weatherData.current.wind_degree,
+				humidity: weatherData.current.humidity,
+				cloud: weatherData.current.cloud,
+				feels_like_c: weatherData.current.feelslike_c,
+				uv: weatherData.current.uv,
+				visibility_km: weatherData.current.vis_km,
+				pressure_mb: weatherData.current.pressure_mb,
+				precip_mm: weatherData.current.precip_mm,
+				icon: weatherData.current.condition.icon
+			},
+			forecast: weatherData.forecast.forecastday.map((day: any) => ({
+				date: day.date,
+				maxtemp_c: day.day.maxtemp_c,
+				mintemp_c: day.day.mintemp_c,
+				condition: day.day.condition.text,
+				icon: day.day.condition.icon,
+				maxwind_kph: day.day.maxwind_kph,
+				totalprecip_mm: day.day.totalprecip_mm,
+				avghumidity: day.day.avghumidity,
+				daily_chance_of_rain: day.day.daily_chance_of_rain,
+				uv: day.day.uv,
+				// Hourly data for detailed planning
+				hourly: day.hour.map((hour: any) => ({
+					time: hour.time,
+					temp_c: hour.temp_c,
+					condition: hour.condition.text,
+					icon: hour.condition.icon,
+					wind_kph: hour.wind_kph,
+					wind_dir: hour.wind_dir,
+					wind_degree: hour.wind_degree,
+					humidity: hour.humidity,
+					cloud: hour.cloud,
+					feels_like_c: hour.feelslike_c,
+					precip_mm: hour.precip_mm,
+					chance_of_rain: hour.chance_of_rain,
+					uv: hour.uv,
+					visibility_km: hour.vis_km
+				}))
+			}))
+		};
 		
 		return json({
 			success: true,
-			data: weatherData
+			data: bikeWeatherData
 		});
 		
 	} catch (error) {

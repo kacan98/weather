@@ -1,86 +1,155 @@
 import { json } from '@sveltejs/kit';
+import { WEATHER_API_KEY } from '$env/static/private';
 import type { RequestHandler } from './$types';
 
 interface SearchRequest {
 	query: string;
 }
 
-interface LocationResult {
+interface SearchResult {
 	name: string;
 	lat: number;
 	lng: number;
 	country?: string;
 	region?: string;
+	type?: string;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { query }: SearchRequest = await request.json();
-		
+
 		if (!query || query.trim().length < 2) {
 			return json({
-				success: false,
-				error: 'Query must be at least 2 characters'
+				success: true,
+				data: []
 			});
 		}
+
+		// Use Nominatim (OpenStreetMap) for better address search - completely free!
+		const searchUrl = `https://nominatim.openstreetmap.org/search?` + 
+			`q=${encodeURIComponent(query.trim())}&` +
+			`format=json&` +
+			`addressdetails=1&` +
+			`limit=10&` +
+			`countrycodes=dk,se,no,de,gb,us&` + // Prioritize Nordic countries + common ones
+			`accept-language=en`;
 		
-		// First, get fresh session from Morecast
-		const authResponse = await fetch('https://morecast.com/en/plan-your-route');
-		const cookies = authResponse.headers.get('set-cookie') || '';
-		
-		// Search for locations
-		const formData = new URLSearchParams();
-		formData.append('query', query.trim());
-		
-		const searchResponse = await fetch('https://morecast.com/en/api/search-location', {
-			method: 'POST',
+		const response = await fetch(searchUrl, {
 			headers: {
-				'Accept': '*/*',
-				'Accept-Language': 'en,cs;q=0.9,da;q=0.8,ru;q=0.7,sv;q=0.6',
-				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-				'Origin': 'https://morecast.com',
-				'Referer': 'https://morecast.com/en/plan-your-route',
-				'X-Requested-With': 'XMLHttpRequest',
-				'Cookie': cookies,
-				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-			},
-			body: formData.toString()
+				'User-Agent': 'BikeWeatherApp/1.0 (https://your-domain.com)' // Required by Nominatim
+			}
 		});
 		
-		if (!searchResponse.ok) {
-			throw new Error(`Search API error: ${searchResponse.status}`);
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('Nominatim search error:', response.status, errorText);
+			
+			// Fallback to WeatherAPI.com if Nominatim fails
+			return await fallbackToWeatherAPI(query);
 		}
 		
-		const searchData = await searchResponse.json();
+		const searchData = await response.json();
 		
-		// Transform the results to our format
-		const locations: LocationResult[] = [];
-		
-		if (Array.isArray(searchData)) {
-			for (const item of searchData) {
-				if (item.lat && item.lng && item.name) {
-					locations.push({
-						name: item.name,
-						lat: parseFloat(item.lat),
-						lng: parseFloat(item.lng),
-						country: item.country,
-						region: item.region
-					});
+		// Transform Nominatim data to our format
+		const results: SearchResult[] = searchData.map((location: any) => {
+			// Build a nice display name from address components
+			let displayName = location.display_name;
+			
+			// Try to create a more readable name
+			if (location.address) {
+				const addr = location.address;
+				const parts = [];
+				
+				// Add house number and street
+				if (addr.house_number && addr.road) {
+					parts.push(`${addr.road} ${addr.house_number}`);
+				} else if (addr.road) {
+					parts.push(addr.road);
+				}
+				
+				// Add locality/city
+				if (addr.city) {
+					parts.push(addr.city);
+				} else if (addr.town) {
+					parts.push(addr.town);
+				} else if (addr.village) {
+					parts.push(addr.village);
+				} else if (addr.municipality) {
+					parts.push(addr.municipality);
+				}
+				
+				// Add country for international results
+				if (addr.country) {
+					parts.push(addr.country);
+				}
+				
+				if (parts.length > 0) {
+					displayName = parts.join(', ');
 				}
 			}
-		}
+			
+			return {
+				name: displayName,
+				lat: parseFloat(location.lat),
+				lng: parseFloat(location.lon),
+				country: location.address?.country,
+				region: location.address?.state || location.address?.region,
+				type: location.type || 'address'
+			};
+		});
 		
 		return json({
 			success: true,
-			data: locations
+			data: results
 		});
 		
 	} catch (error) {
 		console.error('Location search error:', error);
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-		return json({
-			success: false,
-			error: errorMessage
-		}, { status: 500 });
+		
+		// Fallback to WeatherAPI.com search
+		try {
+			return await fallbackToWeatherAPI(query.trim());
+		} catch (fallbackError) {
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+			return json({
+				success: false,
+				error: errorMessage
+			}, { status: 500 });
+		}
 	}
 };
+
+// Fallback function to use WeatherAPI.com if Nominatim fails
+async function fallbackToWeatherAPI(query: string) {
+	if (!WEATHER_API_KEY) {
+		return json({
+			success: false,
+			error: 'Location search temporarily unavailable'
+		}, { status: 500 });
+	}
+
+	const weatherSearchUrl = `https://api.weatherapi.com/v1/search.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(query.trim())}`;
+	
+	const response = await fetch(weatherSearchUrl);
+	
+	if (!response.ok) {
+		throw new Error(`WeatherAPI fallback failed: ${response.status}`);
+	}
+	
+	const searchData = await response.json();
+	
+	const results: SearchResult[] = searchData.map((location: any) => ({
+		name: location.name,
+		lat: location.lat,
+		lng: location.lon,
+		country: location.country,
+		region: location.region,
+		type: 'city'
+	}));
+	
+	return json({
+		success: true,
+		data: results
+	});
+}

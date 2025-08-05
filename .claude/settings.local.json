@@ -6,7 +6,10 @@
       "WebFetch(domain:svelte.dev)",
       "Bash(npx tailwindcss init:*)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "WebFetch(domain:morecast.com)",
+      "Bash(grep:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

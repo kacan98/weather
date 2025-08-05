@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
 	import LocationSearch from './LocationSearch.svelte';
 	
 	interface Location {
@@ -8,14 +9,12 @@
 	
 	export let start: Location;
 	export let end: Location;
+	export let startName = '';
+	export let endName = '';
 	
-	let showAdvanced = false;
-	let startName = 'Home';
-	let endName = 'Work';
+	const dispatch = createEventDispatcher();
 	
-	function toggleAdvanced() {
-		showAdvanced = !showAdvanced;
-	}
+	// Make sure the names are exported so parent can set them
 	
 	function swapLocations() {
 		const temp = { ...start };
@@ -24,116 +23,68 @@
 		end = temp;
 		startName = endName;
 		endName = tempName;
+		
+		// Emit update
+		dispatch('update', { start, end, startName, endName });
 	}
 	
 	function handleStartSelect(event: CustomEvent) {
 		start = { lat: event.detail.lat, lng: event.detail.lng };
 		startName = event.detail.name;
+		
+		// Emit update
+		dispatch('update', { start, end, startName, endName });
 	}
 	
 	function handleEndSelect(event: CustomEvent) {
 		end = { lat: event.detail.lat, lng: event.detail.lng };
 		endName = event.detail.name;
+		
+		// Emit update
+		dispatch('update', { start, end, startName, endName });
 	}
 </script>
 
 <div class="bg-white rounded-lg shadow-md p-6">
 	<div class="flex justify-between items-center mb-4">
-		<h2 class="text-xl font-semibold">📍 Route Configuration</h2>
-		<button 
-			class="text-blue-600 text-sm hover:underline"
-			onclick={toggleAdvanced}
-		>
-			{showAdvanced ? 'Hide' : 'Show'} Advanced
-		</button>
+		<h2 class="text-xl font-semibold">📍 Choose Your Route</h2>
+		{#if startName && endName}
+			<button 
+				class="text-gray-600 hover:text-blue-600 text-sm cursor-pointer transition-colors"
+				on:click={swapLocations}
+			>
+				🔄 Swap
+			</button>
+		{/if}
 	</div>
 	
 	<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-		<div>
-			<LocationSearch 
-				label="Start Location" 
-				icon="🏠" 
-				placeholder="Search for your home address..."
-				onselect={handleStartSelect}
-			/>
-			
-			{#if showAdvanced}
-				<div class="mt-3 space-y-2">
-					<input 
-						type="number" 
-						bind:value={start.lat}
-						step="0.00001"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-						placeholder="Latitude"
-					/>
-					<input 
-						type="number" 
-						bind:value={start.lng}
-						step="0.00001"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-						placeholder="Longitude"
-					/>
-				</div>
-			{/if}
-		</div>
+		<LocationSearch 
+			label="Start Location" 
+			icon="🏠" 
+			placeholder="Search for your home address..."
+			bind:value={startName}
+			on:select={handleStartSelect}
+		/>
 		
-		<div>
-			<LocationSearch 
-				label="End Location" 
-				icon="🏢" 
-				placeholder="Search for your work address..."
-				onselect={handleEndSelect}
-			/>
-			
-			{#if showAdvanced}
-				<div class="mt-3 space-y-2">
-					<input 
-						type="number" 
-						bind:value={end.lat}
-						step="0.00001"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-						placeholder="Latitude"
-					/>
-					<input 
-						type="number" 
-						bind:value={end.lng}
-						step="0.00001"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-						placeholder="Longitude"
-					/>
-				</div>
-			{/if}
-		</div>
+		<LocationSearch 
+			label="End Location" 
+			icon="🏢" 
+			placeholder="Search for your work address..."
+			bind:value={endName}
+			on:select={handleEndSelect}
+		/>
 	</div>
 	
-	{#if showAdvanced}
-		<div class="flex justify-center mb-4">
-			<button 
-				class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm"
-				onclick={swapLocations}
-			>
-				🔄 Swap Start ↔ End
-			</button>
+	{#if startName && endName}
+		<div class="flex items-center justify-center space-x-4 text-gray-700 bg-green-50 rounded-lg p-4 border border-green-200">
+			<span class="bg-green-100 px-3 py-1 rounded-full text-sm font-medium">
+				🏠 {startName.length > 25 ? startName.substring(0, 25) + '...' : startName}
+			</span>
+			<span class="text-2xl text-green-600">→</span>
+			<span class="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium">
+				🏢 {endName.length > 25 ? endName.substring(0, 25) + '...' : endName}
+			</span>
 		</div>
 	{/if}
-	
-	<div class="flex items-center justify-center space-x-4 text-gray-700 bg-gray-50 rounded-lg p-4">
-		<span class="bg-green-100 px-3 py-1 rounded-full text-sm font-medium">
-			🏠 {startName}
-		</span>
-		<span class="text-2xl">→</span>
-		<span class="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium">
-			🏢 {endName}
-		</span>
-	</div>
-	
-	{#if showAdvanced}
-		<div class="text-center text-xs text-gray-500 mt-2">
-			Coordinates: {start.lat.toFixed(5)}, {start.lng.toFixed(5)} → {end.lat.toFixed(5)}, {end.lng.toFixed(5)}
-		</div>
-	{/if}
-	
-	<div class="text-center text-xs text-gray-500 mt-3">
-		🚴‍♂️ Bicycle route mode • Weather along the path
-	</div>
 </div>
