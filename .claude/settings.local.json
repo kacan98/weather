@@ -5,7 +5,8 @@
       "Bash(npx sv:*)",
       "WebFetch(domain:svelte.dev)",
       "Bash(npx tailwindcss init:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
     ],
     "deny": []
   }

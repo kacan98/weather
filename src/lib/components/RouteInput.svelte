@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LocationSearch from './LocationSearch.svelte';
+	
 	interface Location {
 		lat: number;
 		lng: number;
@@ -8,6 +10,8 @@
 	export let end: Location;
 	
 	let showAdvanced = false;
+	let startName = 'Home';
+	let endName = 'Work';
 	
 	function toggleAdvanced() {
 		showAdvanced = !showAdvanced;
@@ -15,8 +19,21 @@
 	
 	function swapLocations() {
 		const temp = { ...start };
+		const tempName = startName;
 		start = { ...end };
 		end = temp;
+		startName = endName;
+		endName = tempName;
+	}
+	
+	function handleStartSelect(event: CustomEvent) {
+		start = { lat: event.detail.lat, lng: event.detail.lng };
+		startName = event.detail.name;
+	}
+	
+	function handleEndSelect(event: CustomEvent) {
+		end = { lat: event.detail.lat, lng: event.detail.lng };
+		endName = event.detail.name;
 	}
 </script>
 
@@ -33,51 +50,59 @@
 	
 	<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 		<div>
-			<label class="block text-sm font-medium text-gray-700 mb-2">
-				🏠 Start Location (Home)
-			</label>
-			<div class="space-y-2">
-				<input 
-					type="number" 
-					bind:value={start.lat}
-					step="0.00001"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-					placeholder="Latitude"
-					readonly={!showAdvanced}
-				/>
-				<input 
-					type="number" 
-					bind:value={start.lng}
-					step="0.00001"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-					placeholder="Longitude"
-					readonly={!showAdvanced}
-				/>
-			</div>
+			<LocationSearch 
+				label="Start Location" 
+				icon="🏠" 
+				placeholder="Search for your home address..."
+				onselect={handleStartSelect}
+			/>
+			
+			{#if showAdvanced}
+				<div class="mt-3 space-y-2">
+					<input 
+						type="number" 
+						bind:value={start.lat}
+						step="0.00001"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+						placeholder="Latitude"
+					/>
+					<input 
+						type="number" 
+						bind:value={start.lng}
+						step="0.00001"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+						placeholder="Longitude"
+					/>
+				</div>
+			{/if}
 		</div>
 		
 		<div>
-			<label class="block text-sm font-medium text-gray-700 mb-2">
-				🏢 End Location (Work)
-			</label>
-			<div class="space-y-2">
-				<input 
-					type="number" 
-					bind:value={end.lat}
-					step="0.00001"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-					placeholder="Latitude"
-					readonly={!showAdvanced}
-				/>
-				<input 
-					type="number" 
-					bind:value={end.lng}
-					step="0.00001"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-					placeholder="Longitude"
-					readonly={!showAdvanced}
-				/>
-			</div>
+			<LocationSearch 
+				label="End Location" 
+				icon="🏢" 
+				placeholder="Search for your work address..."
+				onselect={handleEndSelect}
+			/>
+			
+			{#if showAdvanced}
+				<div class="mt-3 space-y-2">
+					<input 
+						type="number" 
+						bind:value={end.lat}
+						step="0.00001"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+						placeholder="Latitude"
+					/>
+					<input 
+						type="number" 
+						bind:value={end.lng}
+						step="0.00001"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+						placeholder="Longitude"
+					/>
+				</div>
+			{/if}
 		</div>
 	</div>
 	
@@ -93,14 +118,20 @@
 	{/if}
 	
 	<div class="flex items-center justify-center space-x-4 text-gray-700 bg-gray-50 rounded-lg p-4">
-		<span class="bg-green-100 px-3 py-1 rounded-full text-sm">
-			🏠 {start.lat.toFixed(4)}, {start.lng.toFixed(4)}
+		<span class="bg-green-100 px-3 py-1 rounded-full text-sm font-medium">
+			🏠 {startName}
 		</span>
 		<span class="text-2xl">→</span>
-		<span class="bg-blue-100 px-3 py-1 rounded-full text-sm">
-			🏢 {end.lat.toFixed(4)}, {end.lng.toFixed(4)}
+		<span class="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium">
+			🏢 {endName}
 		</span>
 	</div>
+	
+	{#if showAdvanced}
+		<div class="text-center text-xs text-gray-500 mt-2">
+			Coordinates: {start.lat.toFixed(5)}, {start.lng.toFixed(5)} → {end.lat.toFixed(5)}, {end.lng.toFixed(5)}
+		</div>
+	{/if}
 	
 	<div class="text-center text-xs text-gray-500 mt-3">
 		🚴‍♂️ Bicycle route mode • Weather along the path

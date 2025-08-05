@@ -15,11 +15,41 @@ export const POST: RequestHandler = async ({ request }) => {
 		const authResponse = await fetch('https://morecast.com/en/plan-your-route');
 		const authHTML = await authResponse.text();
 		
-		// Extract CSRF token from the HTML
-		const csrfMatch = authHTML.match(/name="_token" value="([^"]+)"/);
-		const csrfToken = csrfMatch ? csrfMatch[1] : null;
+		console.log('Auth response status:', authResponse.status);
+		console.log('Auth response headers:', Object.fromEntries(authResponse.headers.entries()));
+		console.log('HTML length:', authHTML.length);
+		console.log('HTML snippet:', authHTML.substring(0, 500));
+		
+		// Try multiple CSRF token patterns
+		let csrfToken = null;
+		
+		// Pattern 1: name="_token" value="..."
+		let csrfMatch = authHTML.match(/name="_token"\s+value="([^"]+)"/);
+		if (csrfMatch) csrfToken = csrfMatch[1];
+		
+		// Pattern 2: meta name="csrf-token" content="..."
+		if (!csrfToken) {
+			csrfMatch = authHTML.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
+			if (csrfMatch) csrfToken = csrfMatch[1];
+		}
+		
+		// Pattern 3: window.Laravel = {"csrfToken":"..."}
+		if (!csrfToken) {
+			csrfMatch = authHTML.match(/window\.Laravel\s*=\s*{[^}]*"csrfToken"\s*:\s*"([^"]+)"/);
+			if (csrfMatch) csrfToken = csrfMatch[1];
+		}
+		
+		// Pattern 4: _token in script tags
+		if (!csrfToken) {
+			csrfMatch = authHTML.match(/"_token"\s*:\s*"([^"]+)"/);
+			if (csrfMatch) csrfToken = csrfMatch[1];
+		}
+		
+		console.log('Found CSRF token:', csrfToken);
 		
 		if (!csrfToken) {
+			// Log more details for debugging
+			console.log('Full HTML for debugging:', authHTML);
 			throw new Error('Could not get CSRF token');
 		}
 		
