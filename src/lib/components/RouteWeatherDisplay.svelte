@@ -1,4 +1,6 @@
 <script lang="ts">
+	import BikeRouteMap from './BikeRouteMap.svelte';
+	
 	interface Location {
 		lat: number;
 		lng: number;
@@ -188,6 +190,21 @@
 				<p class="text-xs text-gray-500">Getting forecasts for multiple points along your path</p>
 			</div>
 		{/if}	{#if routeWeatherData}
+		<!-- Interactive Map -->
+		<div class="mb-4">
+			<BikeRouteMap 
+				{start} 
+				{end} 
+				weatherPoints={routeWeatherData.departureOptions[selectedOptionIndex]?.weatherAlongRoute || []}
+			/>
+			
+			{#if routeWeatherData.departureOptions[selectedOptionIndex]?.weatherAlongRoute?.length > 0}
+				<div class="mt-2 text-xs text-gray-500 text-center">
+					�️ Weather information is displayed automatically on the map at optimal intervals
+				</div>
+			{/if}
+		</div>
+		
 		<div class="space-y-4">
 			<!-- Route Info - Compact -->
 			<div class="bg-blue-50 rounded p-3">
@@ -345,7 +362,7 @@
 
 			<!-- Quick Time Selector -->
 			<div class="bg-gray-50 rounded p-3">
-				<p class="text-sm font-medium mb-2">Quick Select:</p>
+				<p class="text-sm font-medium mb-2">🕒 Select Departure Time (updates map):</p>
 				<div class="flex flex-wrap gap-1">
 					{#each routeWeatherData.departureOptions.slice(0, 8) as option, i}
 						<button

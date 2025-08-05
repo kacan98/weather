@@ -141,19 +141,37 @@ function calculateBikeRating(weather: any): { score: number; factors: string[] }
 	return { score: Math.max(1, Math.min(10, score)), factors };
 }
 
-function generateRoutePoints(start: { lat: number; lng: number }, end: { lat: number; lng: number }, numPoints: number = 3): RouteWeatherPoint[] {
-	const points: RouteWeatherPoint[] = [];
+async function generateRoutePoints(start: { lat: number; lng: number }, end: { lat: number; lng: number }): Promise<RouteWeatherPoint[]> {
+	try {
+		// Try to get actual bike route
+		const routeResponse = await fetch('http://localhost:5173/api/bike-route', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ start, end })
+		});
+		
+		if (routeResponse.ok) {
+			const routeData = await routeResponse.json();
+			if (routeData.success) {
+				console.log(`Using actual bike route with ${routeData.routePoints.length} points`);
+				return routeData.routePoints.map((point: any) => ({
+					lat: point.lat,
+					lng: point.lng,
+					progress: point.progress,
+					estimatedArrivalTime: ''
+				}));
+			}
+		}
+	} catch (error) {
+		console.warn('Failed to fetch bike route, falling back to straight line:', error);
+	}
 	
-	// Always include start and end
-	points.push({
-		lat: start.lat,
-		lng: start.lng,
-		progress: 0,
-		estimatedArrivalTime: ''
-	});
-
-	// Add intermediate points
-	for (let i = 1; i < numPoints - 1; i++) {
+	// Fallback to straight line route
+	console.log('Using fallback straight-line route');
+	const points: RouteWeatherPoint[] = [];
+	const numPoints = 5;
+	
+	for (let i = 0; i < numPoints; i++) {
 		const progress = i / (numPoints - 1);
 		points.push({
 			lat: start.lat + (end.lat - start.lat) * progress,
@@ -162,14 +180,7 @@ function generateRoutePoints(start: { lat: number; lng: number }, end: { lat: nu
 			estimatedArrivalTime: ''
 		});
 	}
-
-	points.push({
-		lat: end.lat,
-		lng: end.lng,
-		progress: 1,
-		estimatedArrivalTime: ''
-	});
-
+	
 	return points;
 }
 
@@ -199,7 +210,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		console.log(`Fetching route weather from ${start.lat},${start.lng} to ${end.lat},${end.lng}`);
 		
 		// Generate points along the route
-		const routePoints = generateRoutePoints(start, end, 3);
+		const routePoints = await generateRoutePoints(start, end);
 		
 		// Get weather data for all route points
 		const weatherPromises = routePoints.map(async (point) => {

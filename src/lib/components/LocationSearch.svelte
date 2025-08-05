@@ -94,7 +94,6 @@
 	}
 	
 	function selectLocation(location: SearchResult) {
-		console.log('Selecting location:', location.name); // Debug log
 		query = location.name;
 		value = location.name; // Update the bound value prop
 		showResults = false;
