@@ -76,9 +76,9 @@
 						{/if}
 						
 						{#if weatherData.data.forecast.forecast?.forecastday?.[0]?.hour?.[0]}
+							{@const hour = weatherData.data.forecast.forecast.forecastday[0].hour[0]}
 							<div>
 								<h3 class="font-medium text-blue-600">☔ First Hour Forecast Precipitation:</h3>
-								{@const hour = weatherData.data.forecast.forecast.forecastday[0].hour[0]}
 								<div class="text-sm bg-blue-50 p-2 rounded mt-1">
 									<div><strong>precip_mm:</strong> {hour.precip_mm}</div>
 									<div><strong>chance_of_rain:</strong> {hour.chance_of_rain}%</div>
