@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import Button from './ui/Button.svelte';
+	import Card from './ui/Card.svelte';
+	import { designSystem } from '$lib/styles/design-system';
 	
 	export let selectedProvider = 'weatherapi';
 	export let availableProviders: any[] = [];
@@ -18,28 +21,25 @@
 	}
 </script>
 
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+<Card variant="compact">
 	<div class="flex items-center justify-between">
-		<span class="text-sm text-gray-600 mr-3">Weather Source:</span>
+		<span class="{designSystem.typography.body.label} mr-3">Weather Source:</span>
 		{#if availableProviders.length > 0}
-			<div class="flex gap-2">
+			<div class="flex {designSystem.spacing.inline}">
 				{#each availableProviders as provider}
-					<button
-						class="px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors {
-							selectedProvider === provider.id 
-								? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
-								: 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-						}"
+					<Button
+						variant={selectedProvider === provider.id ? 'active' : 'secondary'}
+						size="sm"
 						on:click={() => handleProviderChange(provider.id)}
 					>
 						{provider.name}
-					</button>
+					</Button>
 				{/each}
 			</div>
 		{:else}
-			<div class="text-sm text-gray-500">
+			<div class="{designSystem.typography.body.small} {designSystem.animations.pulse}">
 				Loading providers...
 			</div>
 		{/if}
 	</div>
-</div>
+</Card>

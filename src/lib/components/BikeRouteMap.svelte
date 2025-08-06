@@ -27,6 +27,8 @@
 	export let start: Location;
 	export let end: Location;
 	export let weatherPoints: WeatherRoutePoint[] = [];
+	export let selectedDepartureTime: string | undefined = undefined;
+	export let estimatedTravelTimeMinutes: number = 30;
 
 	let mapContainer: HTMLDivElement;
 	let map: L.Map | null = null;
@@ -278,7 +280,7 @@
 							 style="background-color: ${getRatingColor(startWeather.bikeRating.score)}; color: white;">
 							🚴‍♂️ ${startWeather.bikeRating.score}/10
 						</div>
-						<div class="text-xs text-gray-600 mt-1">Departure: Now</div>
+						<div class="text-xs text-gray-600 mt-1">Departure: ${selectedDepartureTime ? new Date(selectedDepartureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'Now'}</div>
 					</div>
 				`;
 				
@@ -303,9 +305,9 @@
 						fillOpacity: 0.9
 					}).addTo(map);
 
-					// Calculate estimated arrival time (assuming we have travel time from props)
-					const estimatedTravelMinutes = Math.round(totalDistance * 4); // ~15 km/h
-					const arrivalTime = new Date(Date.now() + estimatedTravelMinutes * 60000);
+					// Calculate estimated arrival time based on selected departure time
+					const departureTime = selectedDepartureTime ? new Date(selectedDepartureTime) : new Date();
+					const arrivalTime = new Date(departureTime.getTime() + estimatedTravelTimeMinutes * 60000);
 					const arrivalTimeStr = arrivalTime.toLocaleTimeString('en-US', {
 						hour: '2-digit',
 						minute: '2-digit',
@@ -361,9 +363,16 @@
 		updateRoute();
 	}
 
-	// Update weather markers when weather points change
-	$: if (map && weatherPoints) {
-		console.log('Weather points updated:', weatherPoints.length);
+	// Create a reactive key that combines weather points and departure time
+	$: mapUpdateKey = JSON.stringify({
+		weatherPointsLength: weatherPoints?.length || 0,
+		departureTime: selectedDepartureTime,
+		hasWeather: weatherPoints?.[0]?.weather !== undefined
+	});
+
+	// Update weather markers when the key changes
+	$: if (map && mapUpdateKey) {
+		console.log('Map update triggered by key change:', mapUpdateKey);
 		updateRoute();
 	}
 </script>

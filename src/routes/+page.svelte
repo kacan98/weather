@@ -6,6 +6,10 @@
 	import RouteWeatherDisplay from '$lib/components/RouteWeatherDisplay.svelte';
 	import WeatherProviderSelector from '$lib/components/WeatherProviderSelector.svelte';
 	import WeatherProviderComparison from '$lib/components/WeatherProviderComparison.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
+	import { designSystem } from '$lib/styles/design-system';
 	
 	interface Location {
 		lat: number;
@@ -26,6 +30,7 @@
 	let showComparison = false;
 	let comparisonData: any = {};
 	let hasUrlParams = false;
+	let urlParamsChecked = false; // Start with false to show loading by default
 	
 	// Load from URL parameters on mount
 	onMount(() => {
@@ -55,7 +60,8 @@
 			}
 		}
 		
-		// Mark initial load as complete
+		// Mark URL params as checked and initial load as complete
+		urlParamsChecked = true;
 		initialLoad = false;
 	});
 	
@@ -149,134 +155,186 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gray-100">
-	<div class="max-w-4xl mx-auto p-4">
-		<header class="text-center mb-8">
-			<h1 class="text-3xl font-bold text-blue-600 mb-1">🚴‍♂️ Smart Bike Weather</h1>
-			<p class="text-gray-600 text-sm">Find the perfect time to start your bike ride</p>
-		</header>
-		
-		{#if initialLoad && hasUrlParams}
-			<!-- Loading screen for URL-based routes -->
-			<div class="max-w-2xl mx-auto text-center">
-				<div class="bg-white rounded-lg shadow-md p-8">
-					<div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-					<h2 class="text-xl font-semibold text-gray-800 mb-2">Loading Route</h2>
-					<p class="text-gray-600">Preparing your weather analysis...</p>
-				</div>
-			</div>
-		{:else if currentStep === 1}
-			<!-- Step 1: Location Input -->
-			<div class="max-w-2xl mx-auto">
-				<div class="text-center mb-6">
-					<div class="inline-flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium mb-4">
-						Step 1 of 2 • Choose Your Route
+{#if !urlParamsChecked}
+	<!-- Loading screen while checking URL params -->
+	<LoadingScreen 
+		message="🚴‍♂️ Smart Bike Weather" 
+		subtitle="Loading..." 
+	/>
+{:else if initialLoad && hasUrlParams}
+	<!-- Loading screen for URL-based routes -->
+	<LoadingScreen 
+		message="Loading Route" 
+		subtitle="Loading..." 
+	/>
+{:else}
+	{#if currentStep === 1}
+		<!-- Step 1: Location Input - Centered on screen with proper height constraint -->
+		<div class="h-screen {designSystem.colors.background.main} overflow-hidden relative">
+			<div class="flex items-center justify-center h-full">
+				<div class="max-w-2xl mx-auto px-4">
+					<header class="text-center mb-6">
+						<h1 class="{designSystem.typography.heading.main} mb-2">
+							🚴‍♂️ Smart Bike Weather
+						</h1>
+						<p class="{designSystem.typography.body.main}">Find the perfect time to start your bike ride</p>
+					</header>
+
+					<div class="text-center mb-6">
+						<div class="inline-flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+							Step 1 of 2 • Choose Your Route
+						</div>
+					</div>
+					
+					<RouteInput 
+						bind:start 
+						bind:end 
+						bind:startName
+						bind:endName
+						on:update={handleLocationUpdate}
+					/>
+					
+					<!-- Always show the search button, but enable/disable based on valid inputs -->
+					<div class="mt-6 text-center">
+						<Button
+							variant="primary"
+							size="lg"
+							disabled={!start.lat || !end.lat || !startName || !endName}
+							on:click={searchWeather}
+						>
+							🔍 Analyze Weather Along Route
+						</Button>
+						{#if !start.lat || !end.lat}
+							<p class="text-sm text-gray-500 mt-2">
+								Please select valid locations from the dropdown
+							</p>
+						{:else}
+							<p class="text-sm text-gray-500 mt-2">
+								Get weather forecasts for different departure times
+							</p>
+						{/if}
+					</div>
+					
+					<!-- Simple footer for first page -->
+					<div class="absolute bottom-4 left-0 right-0">
+						<div class="text-xs text-gray-400 flex items-center justify-center gap-4">
+							<span>© {new Date().getFullYear()} Karel Čančara</span>
+							<a href="https://www.linkedin.com/in/kcancara/" class="flex items-center gap-1 hover:text-blue-600 cursor-pointer" target="_blank" rel="noopener">
+								<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z"/>
+								</svg>
+							</a>
+							<a href="mailto:karel.cancara@gmail.com" class="flex items-center gap-1 hover:text-blue-600 cursor-pointer">
+								<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+								</svg>
+							</a>
+						</div>
 					</div>
 				</div>
-				
-				<RouteInput 
-					bind:start 
-					bind:end 
-					bind:startName
-					bind:endName
-					on:update={handleLocationUpdate}
-				/>
-				
-				<!-- Always show the search button, but enable/disable based on valid inputs -->
-				<div class="mt-6 text-center">
-					<button
-						class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
-						on:click={searchWeather}
-						disabled={!start.lat || !end.lat || !startName || !endName}
-					>
-						🔍 Analyze Weather Along Route
-					</button>
-					<p class="text-sm text-gray-500 mt-2">
-						{#if !startName || !endName}
-							Enter both start and end locations to continue
-						{:else if !start.lat || !end.lat}
-							Please select valid locations from the dropdown
-						{:else}
-							Get weather forecasts for different departure times
-						{/if}
-					</p>
-				</div>
 			</div>
-			
-		{:else if currentStep === 2}
-			<!-- Step 2: Weather Results -->
-			<div class="mb-4">
-				<div class="flex items-center justify-between">
-					<button
-						class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
-						on:click={backToLocationInput}
-					>
-						← Back to route selection
-					</button>
-					
-					<div class="flex items-center space-x-4">
-						<div class="text-sm text-gray-600">
-							📏 {distance.toFixed(1)} km • 🚴‍♂️ ~{estimatedTravelTimeMinutes} min
-						</div>
+		</div>
+		
+	{:else if currentStep === 2}
+		<div class="min-h-screen {designSystem.colors.background.main}">
+			<div class="max-w-4xl mx-auto p-4">
+				<!-- Step 2: Weather Results -->
+				<header class="text-center mb-8">
+					<h1 class="{designSystem.typography.heading.main} mb-2">
+						🚴‍♂️ Smart Bike Weather
+					</h1>
+					<p class="{designSystem.typography.body.main}">Find the perfect time to start your bike ride</p>
+				</header>
+
+				<div class="mb-4">
+					<div class="flex items-center justify-between">
 						<button
 							class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
-							on:click={shareRoute}
+							on:click={backToLocationInput}
 						>
-							🔗 Share Route
+							← Back to route selection
 						</button>
+						
+						<div class="flex items-center space-x-4">
+							<div class="text-sm text-gray-600">
+								📏 {distance.toFixed(1)} km • 🚴‍♂️ ~{estimatedTravelTimeMinutes} min
+							</div>
+							<button
+								class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
+								on:click={shareRoute}
+							>
+								🔗 Share Route
+							</button>
+						</div>
 					</div>
 				</div>
-			</div>
-			
-			<!-- Route Summary -->
-			<div class="bg-white rounded-lg shadow-md p-4 mb-4">
-				<div class="flex items-center justify-center space-x-3 text-gray-700">
-					<span class="bg-green-100 px-3 py-1 rounded-full text-sm font-medium">
-						🏠 {startName.length > 30 ? startName.substring(0, 30) + '...' : startName}
-					</span>
-					<span class="text-xl">→</span>
-					<span class="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium">
-						🏢 {endName.length > 30 ? endName.substring(0, 30) + '...' : endName}
-					</span>
+				
+				<!-- Route Summary -->
+				<Card class="mb-6">
+					<div class="flex items-center justify-center space-x-4 text-gray-700">
+						<span class="bg-gradient-to-r from-green-100 to-green-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-green-200/50">
+							🏠 {startName.length > 25 ? startName.substring(0, 25) + '...' : startName}
+						</span>
+						<span class="text-2xl {designSystem.animations.pulse}">→</span>
+						<span class="bg-gradient-to-r from-blue-100 to-blue-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-blue-200/50">
+							🏁 {endName.length > 25 ? endName.substring(0, 25) + '...' : endName}
+						</span>
+					</div>
+				</Card>
+				
+				<!-- Weather Provider Selection -->
+				<div class="mb-4">
+					<WeatherProviderSelector 
+						bind:selectedProvider
+						bind:availableProviders
+						bind:showComparison
+						on:providerChange={handleProviderChange}
+						on:toggleComparison={handleToggleComparison}
+					/>
 				</div>
-			</div>
-			
-			<!-- Weather Provider Selection -->
-			<div class="mb-4">
-				<WeatherProviderSelector 
-					bind:selectedProvider
+				
+				<!-- Provider Comparison -->
+				{#if showComparison}
+					<WeatherProviderComparison 
+						{comparisonData}
+						location={{ lat: start.lat, lon: start.lng, name: startName }}
+					/>
+				{/if}
+				
+				<RouteWeatherDisplay 
+					{start} 
+					{end} 
+					{estimatedTravelTimeMinutes}
+					{selectedProvider}
+					autoFetch={true}
 					bind:availableProviders
-					bind:showComparison
-					on:providerChange={handleProviderChange}
-					on:toggleComparison={handleToggleComparison}
 				/>
+				
+				<!-- Footer only shown on results page -->
+				<footer class="text-center mt-8 space-y-3">
+					<div class="text-xs text-gray-500">
+						<p>Weather providers: 
+							<a href="https://www.weatherapi.com/" class="underline hover:text-blue-600 cursor-pointer">WeatherAPI</a> • 
+							<a href="https://openweathermap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenWeatherMap</a> • 
+							<a href="https://www.tomorrow.io/" class="underline hover:text-blue-600 cursor-pointer">Tomorrow.io</a> • 
+							Address search by <a href="https://nominatim.openstreetmap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenStreetMap</a>
+						</p>
+					</div>
+					<div class="text-xs text-gray-400 flex items-center justify-center gap-4">
+						<span>© {new Date().getFullYear()} Karel Čančara</span>
+						<a href="https://www.linkedin.com/in/kcancara/" class="flex items-center gap-1 hover:text-blue-600 cursor-pointer" target="_blank" rel="noopener">
+							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+								<path d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z"/>
+							</svg>
+						</a>
+						<a href="mailto:karel.cancara@gmail.com" class="flex items-center gap-1 hover:text-blue-600 cursor-pointer">
+							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+								<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+							</svg>
+						</a>
+					</div>
+				</footer>
 			</div>
-			
-			<!-- Provider Comparison -->
-			{#if showComparison}
-				<WeatherProviderComparison 
-					{comparisonData}
-					location={{ lat: start.lat, lon: start.lng, name: startName }}
-				/>
-			{/if}
-			
-			<RouteWeatherDisplay 
-				{start} 
-				{end} 
-				{estimatedTravelTimeMinutes}
-				{selectedProvider}
-				autoFetch={true}
-				bind:availableProviders
-			/>
-		{/if}
-		
-		<footer class="text-center mt-8 text-xs text-gray-500">
-			<p>Weather providers: 
-				<a href="https://www.weatherapi.com/" class="underline hover:text-blue-600 cursor-pointer">WeatherAPI</a> • 
-				<a href="https://openweathermap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenWeatherMap</a> • 
-				<a href="https://www.tomorrow.io/" class="underline hover:text-blue-600 cursor-pointer">Tomorrow.io</a> • 
-				Address search by <a href="https://nominatim.openstreetmap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenStreetMap</a>
-			</p>
-		</footer>
-	</div>
-</div>
+		</div>
+	{/if}
+{/if}

@@ -144,7 +144,7 @@ export class OpenWeatherMapProvider extends BaseWeatherProvider {
 		};
 	}
 	
-	private getWindDirection(degrees: number): string {
+	protected getWindDirection(degrees: number): string {
 		const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
 						   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 		const index = Math.round(degrees / 22.5) % 16;

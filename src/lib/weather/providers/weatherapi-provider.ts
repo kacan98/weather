@@ -89,17 +89,15 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 	}
 	
 	private mapToWeatherCondition(data: any, timestamp: Date): WeatherCondition {
-		// Log data for debugging precipitation issues
-		if (process.env.NODE_ENV === 'development') {
-			console.log('WeatherAPI raw data sample:', {
-				precip_mm: data.precip_mm,
-				chance_of_rain: data.chance_of_rain,
-				daily_chance_of_rain: data.daily_chance_of_rain,
-				condition: data.condition?.text,
-				humidity: data.humidity,
-				availableFields: Object.keys(data)
-			});
-		}
+		// Debug logging for development
+		console.log('WeatherAPI raw data sample:', {
+			precip_mm: data.precip_mm,
+			chance_of_rain: data.chance_of_rain,
+			daily_chance_of_rain: data.daily_chance_of_rain,
+			condition: data.condition?.text,
+			humidity: data.humidity,
+			availableFields: Object.keys(data)
+		});
 		
 		return {
 			temperature: data.temp_c ?? data.avgtemp_c ?? 0,
@@ -107,13 +105,18 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 			humidity: data.humidity ?? 0,
 			windSpeed: data.wind_kph ?? 0,
 			windDirection: data.wind_dir ?? '',
+			windGust: data.gust_kph ?? data.wind_kph ?? 0,
 			precipitation: data.precip_mm ?? 0,
 			rainChance: data.chance_of_rain ?? data.daily_chance_of_rain ?? 0,
 			visibility: data.vis_km ?? 10,
 			uvIndex: data.uv ?? 0,
+			pressure: data.pressure_mb ?? 1013,
 			condition: data.condition?.text ?? '',
+			description: data.condition?.text ?? '',
 			icon: data.condition?.icon,
-			timestamp
+			isDay: (data.is_day === 1) || true,
+			time: timestamp,
+			timestamp // For backward compatibility
 		};
 	}
 }

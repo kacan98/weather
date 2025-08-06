@@ -4,13 +4,19 @@ export interface WeatherCondition {
 	humidity: number;
 	windSpeed: number;
 	windDirection: string;
+	windGust: number;
 	precipitation: number;
 	rainChance: number;
 	visibility: number;
 	uvIndex: number;
+	pressure: number;
 	condition: string;
+	description: string;
 	icon?: string;
-	timestamp: Date;
+	isDay: boolean;
+	time: Date;
+	// Legacy field for backward compatibility
+	timestamp?: Date;
 }
 
 export interface WeatherForecast {

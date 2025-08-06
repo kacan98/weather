@@ -333,10 +333,10 @@ export const POST: RequestHandler = async ({ request }) => {
 					
 					// Find the closest weather data point to our desired time
 					let closestWeather = hourlyForecast[0];
-					let minTimeDiff = Math.abs(hourlyForecast[0].timestamp.getTime() - pointTime.getTime());
+					let minTimeDiff = Math.abs((hourlyForecast[0].time || hourlyForecast[0].timestamp!).getTime() - pointTime.getTime());
 					
 					for (const weather of hourlyForecast) {
-						const timeDiff = Math.abs(weather.timestamp.getTime() - pointTime.getTime());
+						const timeDiff = Math.abs((weather.time || weather.timestamp!).getTime() - pointTime.getTime());
 						if (timeDiff < minTimeDiff) {
 							minTimeDiff = timeDiff;
 							closestWeather = weather;
@@ -352,7 +352,7 @@ export const POST: RequestHandler = async ({ request }) => {
 							progress: point.progress
 						},
 						weather: {
-							time: closestWeather.timestamp.toISOString(),
+							time: (closestWeather.time || closestWeather.timestamp!).toISOString(),
 							temp_c: closestWeather.temperature,
 							condition: closestWeather.condition,
 							icon: closestWeather.icon,
