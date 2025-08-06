@@ -44,7 +44,7 @@
 {#if isOpen}
 	<!-- Modal backdrop -->
 	<div 
-		class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+		class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 cursor-pointer"
 		on:click={closeModal}
 		on:keydown={(e) => e.key === 'Escape' && closeModal()}
 		role="dialog"
@@ -64,13 +64,15 @@
 				<h2 id="settings-title" class="text-xl font-semibold text-gray-900">
 					⚙️ Settings
 				</h2>
-				<button
-					class="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+				<Button
+					variant="ghost"
+					size="sm"
 					on:click={closeModal}
 					aria-label="Close settings"
+					class="text-gray-400 hover:text-gray-600 text-2xl leading-none p-1"
 				>
 					×
-				</button>
+				</Button>
 			</div>
 			
 			<!-- Content -->
@@ -133,24 +135,6 @@
 					<p class="text-xs text-gray-500 mt-1">Adjust based on your cycling speed and route difficulty</p>
 				</div>
 				
-				<!-- Provider Comparison Toggle -->
-				{#if availableProviders.length > 1}
-					<div>
-						<div class="flex items-center justify-between">
-							<span class="text-sm font-medium text-gray-700">Compare Providers</span>
-							<label class="relative inline-flex items-center cursor-pointer">
-								<input 
-									type="checkbox" 
-									bind:checked={showComparison}
-									on:change={handleToggleComparison}
-									class="sr-only peer"
-								/>
-								<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-							</label>
-						</div>
-						<p class="text-xs text-gray-500 mt-1">Show weather data from multiple providers for comparison</p>
-					</div>
-				{/if}
 			</div>
 			
 			<!-- Footer -->
