@@ -40,7 +40,6 @@
 	}
 
 	export let start: { lat: number; lng: number };
-	export let end: { lat: number; lng: number };
 
 	let weatherData: WeatherData | null = null;
 	let loading = false;

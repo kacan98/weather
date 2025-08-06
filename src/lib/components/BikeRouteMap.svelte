@@ -8,17 +8,25 @@
 		lng: number;
 	}
 
-	interface RoutePoint {
+	interface BikeRoutePoint {
 		lat: number;
 		lng: number;
-		progress: number;
+		progress?: number;
+	}
+
+	interface WeatherRoutePoint {
+		location: {
+			lat: number;
+			lng: number;
+			progress: number;
+		};
 		weather?: any;
 		bikeRating?: any;
 	}
 
 	export let start: Location;
 	export let end: Location;
-	export let weatherPoints: RoutePoint[] = [];
+	export let weatherPoints: WeatherRoutePoint[] = [];
 
 	let mapContainer: HTMLDivElement;
 	let map: L.Map | null = null;
@@ -29,7 +37,7 @@
 	let routeDistance = 0;
 
 	// Fetch bike route from our API
-	async function fetchBikeRoute(start: Location, end: Location): Promise<RoutePoint[]> {
+	async function fetchBikeRoute(start: Location, end: Location): Promise<BikeRoutePoint[]> {
 		try {
 			const response = await fetch('/api/bike-route', {
 				method: 'POST',
@@ -55,8 +63,8 @@
 	}
 
 	// Fallback to simple interpolation if routing service fails
-	function generateFallbackRoute(start: Location, end: Location): RoutePoint[] {
-		const points: RoutePoint[] = [];
+	function generateFallbackRoute(start: Location, end: Location): BikeRoutePoint[] {
+		const points: BikeRoutePoint[] = [];
 		const numPoints = 5;
 		
 		for (let i = 0; i < numPoints; i++) {
@@ -87,7 +95,7 @@
 	}
 
 	// Smart weather point spacing based on total distance
-	function getOptimalWeatherPoints(route: RoutePoint[], totalDistanceKm: number): number[] {
+	function getOptimalWeatherPoints(route: BikeRoutePoint[], totalDistanceKm: number): number[] {
 		const points = route.length;
 		if (points === 0) return [];
 		
@@ -131,7 +139,7 @@
 	}
 
 	// Calculate total route distance
-	function calculateRouteDistance(route: RoutePoint[]): number {
+	function calculateRouteDistance(route: BikeRoutePoint[]): number {
 		let totalDistance = 0;
 		for (let i = 1; i < route.length; i++) {
 			totalDistance += calculateDistance(route[i-1], route[i]);
@@ -246,7 +254,7 @@
 			// Start marker
 			if (weatherPoints[0] && weatherPoints[0].weather && weatherPoints[0].bikeRating) {
 				const startWeather = weatherPoints[0];
-				const startMarker = LeafletLib.circleMarker([route[0].lat, route[0].lng], {
+				const startMarker = LeafletLib.circleMarker([start.lat, start.lng], {
 					radius: 14,
 					fillColor: getRatingColor(startWeather.bikeRating.score),
 					color: '#fff',
@@ -286,7 +294,7 @@
 			if (weatherPoints.length > 1) {
 				const endWeather = weatherPoints[weatherPoints.length - 1];
 				if (endWeather && endWeather.weather && endWeather.bikeRating) {
-					const endMarker = LeafletLib.circleMarker([route[route.length - 1].lat, route[route.length - 1].lng], {
+					const endMarker = LeafletLib.circleMarker([end.lat, end.lng], {
 						radius: 14,
 						fillColor: getRatingColor(endWeather.bikeRating.score),
 						color: '#fff',
