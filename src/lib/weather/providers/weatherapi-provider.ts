@@ -11,7 +11,7 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 	}
 	
 	async getCurrentWeather(lat: number, lon: number): Promise<WeatherCondition> {
-		const url = `${this.baseUrl}/current.json?key=${this.apiKey}&q=${lat},${lon}`;
+		const url = `${this.baseUrl}/current.json?key=${this.apiKey}&q=${lat},${lon}&aqi=yes`;
 		const response = await fetch(url);
 		
 		if (!response.ok) {
@@ -24,7 +24,7 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 	
 	async getHourlyForecast(lat: number, lon: number, hours: number = 24): Promise<WeatherCondition[]> {
 		const days = Math.ceil(hours / 24);
-		const url = `${this.baseUrl}/forecast.json?key=${this.apiKey}&q=${lat},${lon}&days=${days}`;
+		const url = `${this.baseUrl}/forecast.json?key=${this.apiKey}&q=${lat},${lon}&days=${days}&aqi=yes&alerts=yes`;
 		const response = await fetch(url);
 		
 		if (!response.ok) {
@@ -46,7 +46,7 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 	}
 	
 	async getForecast(lat: number, lon: number): Promise<WeatherForecast> {
-		const url = `${this.baseUrl}/forecast.json?key=${this.apiKey}&q=${lat},${lon}&days=3`;
+		const url = `${this.baseUrl}/forecast.json?key=${this.apiKey}&q=${lat},${lon}&days=3&aqi=yes&alerts=yes`;
 		const response = await fetch(url);
 		
 		if (!response.ok) {
@@ -89,6 +89,18 @@ export class WeatherAPIProvider extends BaseWeatherProvider {
 	}
 	
 	private mapToWeatherCondition(data: any, timestamp: Date): WeatherCondition {
+		// Log data for debugging precipitation issues
+		if (process.env.NODE_ENV === 'development') {
+			console.log('WeatherAPI raw data sample:', {
+				precip_mm: data.precip_mm,
+				chance_of_rain: data.chance_of_rain,
+				daily_chance_of_rain: data.daily_chance_of_rain,
+				condition: data.condition?.text,
+				humidity: data.humidity,
+				availableFields: Object.keys(data)
+			});
+		}
+		
 		return {
 			temperature: data.temp_c ?? data.avgtemp_c ?? 0,
 			feelsLike: data.feelslike_c ?? data.temp_c ?? 0,
