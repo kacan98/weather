@@ -140,18 +140,18 @@ function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: n
 		factors.push('Hot temperature');
 	}
 
-	// Wind scoring
-	if (weather.windSpeed > 40) {
-		score -= 4;
-		factors.push('Dangerous wind speeds');
-	} else if (weather.windSpeed > 30) {
+	// Wind scoring - reduced penalties for more realistic cycling conditions
+	if (weather.windSpeed > 50) {
 		score -= 3;
-		factors.push('Very strong wind');
-	} else if (weather.windSpeed > 20) {
+		factors.push('Dangerous wind speeds');
+	} else if (weather.windSpeed > 35) {
 		score -= 2;
-		factors.push('Strong wind');
-	} else if (weather.windSpeed > 15) {
+		factors.push('Very strong wind');
+	} else if (weather.windSpeed > 25) {
 		score -= 1;
+		factors.push('Strong wind');
+	} else if (weather.windSpeed > 20) {
+		score -= 0.5;
 		factors.push('Moderate wind');
 	}
 

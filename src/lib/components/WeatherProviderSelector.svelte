@@ -22,10 +22,10 @@
 </script>
 
 <Card variant="compact">
-	<div class="flex items-center justify-between">
-		<span class="{designSystem.typography.body.label} mr-3">Weather Source:</span>
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+		<span class="{designSystem.typography.body.label}">Weather Source:</span>
 		{#if availableProviders.length > 0}
-			<div class="flex {designSystem.spacing.inline}">
+			<div class="flex flex-wrap gap-2 justify-center sm:justify-end">
 				{#each availableProviders as provider}
 					<Button
 						variant={selectedProvider === provider.id ? 'active' : 'secondary'}

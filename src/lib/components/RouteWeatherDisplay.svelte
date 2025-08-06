@@ -81,7 +81,11 @@
 		error = '';
 		
 		try {
-			console.log(`Fetching route weather from (${start.lat}, ${start.lng}) to (${end.lat}, ${end.lng})`);
+			console.log(`Fetching route weather from (${start.lat}, ${start.lng}) to (${end.lat}, ${end.lng}) with provider ${selectedProvider}`);
+			
+			// Add timeout to prevent infinite loading
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 			
 			const response = await fetch('/api/route-weather', {
 				method: 'POST',
@@ -91,11 +95,14 @@
 				body: JSON.stringify({
 					start,
 					end,
-					departureIntervals: 12, // Show 3 hours instead of 2
+					departureIntervals: 20, // Show 5 hours (20 * 15min intervals)
 					estimatedTravelTimeMinutes,
 					preferredProvider: selectedProvider
-				})
+				}),
+				signal: controller.signal
 			});
+			
+			clearTimeout(timeoutId);
 			
 			const result = await response.json();
 			
@@ -114,8 +121,13 @@
 				console.error('Route weather API error:', result.error);
 			}
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Unknown error';
-			console.error('Route weather fetch error:', err);
+			if (err instanceof Error && err.name === 'AbortError') {
+				error = `Request timed out after 15 seconds. ${selectedProvider} might be unavailable.`;
+				console.error('Route weather request timed out for provider:', selectedProvider);
+			} else {
+				error = err instanceof Error ? err.message : 'Unknown error';
+				console.error('Route weather fetch error:', err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -236,6 +248,22 @@
 							{bestOption.overallBikeRating.alerts[0]}
 						</div>
 					{/if}
+					
+					<!-- Main recommendation rating factors -->
+					{#if bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors).length > 0}
+						{@const bestFactors = bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors)}
+						{@const bestUniqueFactors = [...new Set(bestFactors)]}
+						<div class="mt-4 text-xs text-gray-500 space-y-2">
+							<p class="font-medium text-gray-600">Why this time?</p>
+							<div class="flex flex-wrap justify-center gap-1">
+								{#each bestUniqueFactors as factor}
+									<span class="px-2 py-1 bg-gray-100 rounded text-xs">
+										{factor}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
 			</Card>
 		{/if}
@@ -284,12 +312,30 @@
 					{/if}
 
 					<!-- Quick weather summary -->
-					{@const startWeather = selected.weatherAlongRoute[0]}
-					<div class="text-center text-sm text-gray-600">
-						{startWeather.weather.temp_c}°C • 
-						{(startWeather.weather.wind_kph / 3.6).toFixed(1)} m/s wind • 
-						{startWeather.weather.precip_mm.toFixed(1)}mm rain
-					</div>
+					{#if selected.weatherAlongRoute.length > 0}
+						{@const startWeather = selected.weatherAlongRoute[0]}
+						<div class="text-center text-sm text-gray-600 mb-3">
+							{startWeather.weather.temp_c}°C • 
+							{(startWeather.weather.wind_kph / 3.6).toFixed(1)} m/s wind • 
+							{startWeather.weather.precip_mm.toFixed(1)}mm rain
+						</div>
+					{/if}
+					
+					<!-- Rating breakdown - show factors that affected the score -->
+					{#if selected.weatherAlongRoute.flatMap(point => point.bikeRating.factors).length > 0}
+						{@const allFactors = selected.weatherAlongRoute.flatMap(point => point.bikeRating.factors)}
+						{@const uniqueFactors = [...new Set(allFactors)]}
+						<div class="text-xs text-gray-500 space-y-1">
+							<p class="font-medium text-gray-600 text-center">Rating factors:</p>
+							<div class="flex flex-wrap justify-center gap-1">
+								{#each uniqueFactors as factor}
+									<span class="px-2 py-1 bg-gray-100 rounded text-xs">
+										{factor}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</Card>
 			{/if}
 
@@ -297,16 +343,16 @@
 			<!-- Alternative Times - Simplified -->
 			<div class="text-center">
 				<p class="text-sm font-medium mb-3 text-gray-700">Other departure times:</p>
-				<div class="flex flex-wrap justify-center gap-2">
-					{#each routeWeatherData.departureOptions.slice(0, 6) as option, i}
+				<div class="flex flex-wrap justify-center gap-2 max-w-full">
+					{#each routeWeatherData.departureOptions as option, i}
 						<button
-							class="px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer
+							class="flex-shrink-0 px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer min-w-0
 							{selectedOptionIndex === i ? 
 								'bg-blue-600 text-white border-blue-600' : 
 								'bg-white/80 hover:bg-blue-50 border-gray-300'}"
 							on:click={() => selectedOptionIndex = i}
 						>
-							{#if i === 0}Now{:else}+{i * 15}min{/if}
+							<div class="whitespace-nowrap">{#if i === 0}Now{:else}+{i * 15}min{/if}</div>
 							<div class="text-xs mt-1 {selectedOptionIndex === i ? 'text-blue-200' : getRatingColor(option.overallBikeRating.score)}">
 								{option.overallBikeRating.score}/10
 							</div>
