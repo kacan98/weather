@@ -235,36 +235,133 @@
 					<div class="{designSystem.typography.heading.recommendation} mb-4">
 						{routeWeatherData.recommendation.recommendation}
 					</div>
-					<div class="text-lg text-gray-600 mb-2">
+					<div class="text-lg text-gray-600 mb-4">
 						{routeWeatherData.recommendation.reasoning}
 					</div>
-					<div class="text-sm text-gray-500 mb-3">
-						Best conditions at {formatTime(bestOption.departureTime)}
-					</div>
-					<div class="inline-flex items-center px-4 py-2 rounded-full {getRatingColor(bestOption.overallBikeRating.score)} text-lg">
-						<span class="mr-2">{getRatingEmoji(bestOption.overallBikeRating.score)}</span>
-						<span class="font-semibold">{bestOption.overallBikeRating.score}/10</span>
-						<span class="ml-2 text-sm">{bestOption.overallBikeRating.summary}</span>
-					</div>
-					{#if bestOption.overallBikeRating.alerts.length > 0}
-						<div class="mt-3 text-sm text-yellow-700">
-							{bestOption.overallBikeRating.alerts[0]}
+					
+					<!-- Always Show Comparison: Now vs Best/Current -->
+					{#if routeWeatherData.recommendation.bestIndex !== 0}
+						{@const nowOption = routeWeatherData.departureOptions[0]}
+						{@const nowWeather = nowOption.weatherAlongRoute[0].weather}
+						{@const bestWeather = bestOption.weatherAlongRoute[0].weather}
+						{@const scoreDiff = (bestOption.overallBikeRating.score - nowOption.overallBikeRating.score).toFixed(1)}
+						
+						<!-- Clear Rating Comparison Header -->
+						<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+							<p class="text-sm font-medium text-blue-800 text-center mb-3">
+								🚴‍♂️ Current conditions vs. recommended departure time
+							</p>
+							
+							<div class="grid grid-cols-3 gap-4 text-center">
+								<!-- Current Conditions -->
+								<div class="space-y-2">
+									<p class="text-sm font-semibold text-gray-700">If you leave NOW</p>
+									<div class="inline-flex items-center px-3 py-2 rounded-full {getRatingColor(nowOption.overallBikeRating.score)}">
+										<span class="mr-1">{getRatingEmoji(nowOption.overallBikeRating.score)}</span>
+										<span class="font-semibold">{nowOption.overallBikeRating.score}/10</span>
+									</div>
+									<div class="text-xs text-gray-600">{nowOption.overallBikeRating.summary}</div>
+								</div>
+								
+								<!-- Arrow and improvement -->
+								<div class="flex flex-col items-center justify-center">
+									<span class="text-2xl text-blue-600">→</span>
+									<span class="text-green-600 font-semibold text-sm">+{scoreDiff} better</span>
+									<span class="text-xs text-gray-500">if you wait</span>
+								</div>
+								
+								<!-- Best Conditions -->
+								<div class="space-y-2">
+									<p class="text-sm font-semibold text-gray-700">Recommended time</p>
+									<div class="inline-flex items-center px-3 py-2 rounded-full {getRatingColor(bestOption.overallBikeRating.score)}">
+										<span class="mr-1">{getRatingEmoji(bestOption.overallBikeRating.score)}</span>
+										<span class="font-semibold">{bestOption.overallBikeRating.score}/10</span>
+									</div>
+									<div class="text-xs text-gray-600">Leave at {formatTime(bestOption.departureTime)}</div>
+								</div>
+							</div>
+							
+							<!-- Weather Differences -->
+							<div class="mt-4 space-y-2 pt-3 border-t border-gray-200">
+								<p class="text-xs font-medium text-gray-600 text-center">What's Different?</p>
+								{#if Math.abs(bestWeather.temp_c - nowWeather.temp_c) >= 2}
+									<div class="flex justify-between text-xs">
+										<span>Temperature:</span>
+										<span>
+											{nowWeather.temp_c}°C → {bestWeather.temp_c}°C
+											{#if bestWeather.temp_c > nowWeather.temp_c}
+												<span class="text-green-600">(+{(bestWeather.temp_c - nowWeather.temp_c).toFixed(1)}°)</span>
+											{:else}
+												<span class="text-blue-600">({(bestWeather.temp_c - nowWeather.temp_c).toFixed(1)}°)</span>
+											{/if}
+										</span>
+									</div>
+								{/if}
+								
+								{#if Math.abs(bestWeather.wind_kph - nowWeather.wind_kph) >= 5}
+									<div class="flex justify-between text-xs">
+										<span>Wind:</span>
+										<span>
+											{(nowWeather.wind_kph / 3.6).toFixed(1)} m/s → {(bestWeather.wind_kph / 3.6).toFixed(1)} m/s
+											{#if bestWeather.wind_kph < nowWeather.wind_kph}
+												<span class="text-green-600">(-{((nowWeather.wind_kph - bestWeather.wind_kph) / 3.6).toFixed(1)} m/s)</span>
+											{:else}
+												<span class="text-orange-600">(+{((bestWeather.wind_kph - nowWeather.wind_kph) / 3.6).toFixed(1)} m/s)</span>
+											{/if}
+										</span>
+									</div>
+								{/if}
+								
+								{#if Math.abs(bestWeather.precip_mm - nowWeather.precip_mm) >= 0.5}
+									<div class="flex justify-between text-xs">
+										<span>Rain:</span>
+										<span>
+											{nowWeather.precip_mm} mm → {bestWeather.precip_mm} mm
+											{#if bestWeather.precip_mm < nowWeather.precip_mm}
+												<span class="text-green-600">(-{(nowWeather.precip_mm - bestWeather.precip_mm).toFixed(1)} mm)</span>
+											{:else if bestWeather.precip_mm > nowWeather.precip_mm}
+												<span class="text-orange-600">(+{(bestWeather.precip_mm - nowWeather.precip_mm).toFixed(1)} mm)</span>
+											{/if}
+										</span>
+									</div>
+								{/if}
+								
+								{#if Math.abs(bestWeather.chance_of_rain - nowWeather.chance_of_rain) >= 10}
+									<div class="flex justify-between text-xs">
+										<span>Rain chance:</span>
+										<span>
+											{nowWeather.chance_of_rain}% → {bestWeather.chance_of_rain}%
+											{#if bestWeather.chance_of_rain < nowWeather.chance_of_rain}
+												<span class="text-green-600">(-{nowWeather.chance_of_rain - bestWeather.chance_of_rain}%)</span>
+											{:else}
+												<span class="text-orange-600">(+{bestWeather.chance_of_rain - nowWeather.chance_of_rain}%)</span>
+											{/if}
+										</span>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{:else}
+						{@const nowOption = routeWeatherData.departureOptions[0]}
+						<!-- Current conditions are already optimal -->
+						<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+							<div class="text-center space-y-3">
+								<p class="text-sm font-medium text-green-800">
+									🎯 Perfect timing! Current conditions are already optimal
+								</p>
+								<div class="inline-flex items-center px-4 py-2 rounded-full {getRatingColor(nowOption.overallBikeRating.score)} text-lg">
+									<span class="mr-2">{getRatingEmoji(nowOption.overallBikeRating.score)}</span>
+									<span class="font-semibold">{nowOption.overallBikeRating.score}/10</span>
+									<span class="ml-2 text-sm">{nowOption.overallBikeRating.summary}</span>
+								</div>
+								<div class="text-sm text-green-700">✨ No need to wait - conditions won't get better than this!</div>
+							</div>
 						</div>
 					{/if}
 					
-					<!-- Best time rating factors -->
-					{#if bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors).length > 0}
-						{@const bestFactors = bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors)}
-						{@const bestUniqueFactors = [...new Set(bestFactors)]}
-						<div class="mt-4 text-xs text-gray-500 space-y-2">
-							<p class="font-medium text-gray-600">What makes this the best time?</p>
-							<div class="flex flex-wrap justify-center gap-1">
-								{#each bestUniqueFactors as factor}
-									<span class="px-2 py-1 bg-gray-100 rounded text-xs">
-										{factor}
-									</span>
-								{/each}
-							</div>
+					{#if bestOption.overallBikeRating.alerts.length > 0}
+						<div class="mt-4 text-sm text-yellow-700">
+							{bestOption.overallBikeRating.alerts[0]}
 						</div>
 					{/if}
 				</div>
@@ -282,8 +379,16 @@
 			/>
 			
 			{#if routeWeatherData.departureOptions[selectedOptionIndex]?.weatherAlongRoute?.length > 0}
-				<div class="mt-2 text-xs text-gray-500 text-center">
-					�️ Weather information is displayed automatically on the map at optimal intervals
+				{@const nowOption = routeWeatherData.departureOptions[0]}
+				{@const bestOption = routeWeatherData.recommendation ? routeWeatherData.departureOptions[routeWeatherData.recommendation.bestIndex] : nowOption}
+				{@const isNowBest = routeWeatherData.recommendation?.bestIndex === 0}
+				<div class="mt-2 text-xs text-gray-600 text-center">
+					{#if isNowBest}
+						☁️ Conditions if you leave now (already optimal!)
+					{:else}
+						☁️ Conditions if you leave {selectedOptionIndex === 0 ? 'now' : `in ${selectedOptionIndex * 15} minutes`} 
+						vs best time ({formatTime(bestOption.departureTime)})
+					{/if}
 				</div>
 			{/if}
 		</div>

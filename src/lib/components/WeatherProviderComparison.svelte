@@ -49,7 +49,7 @@
 								<td class="text-right py-2">{formatValue(data.temperature, '°C')}</td>
 								<td class="text-right py-2">{formatValue(data.feelsLike, '°C')}</td>
 								<td class="text-right py-2">{formatValue(data.humidity, '%')}</td>
-								<td class="text-right py-2">{formatValue(data.windSpeed, ' km/h')}</td>
+								<td class="text-right py-2">{formatValue((data.windSpeed / 3.6), ' m/s', 1)}</td>
 								<td class="text-right py-2">{formatValue(data.rainChance, '%')}</td>
 								<td class="py-2">{data.condition}</td>
 							{:else}

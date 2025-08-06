@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import RouteInput from '$lib/components/RouteInput.svelte';
 	import RouteWeatherDisplay from '$lib/components/RouteWeatherDisplay.svelte';
-	import WeatherProviderSelector from '$lib/components/WeatherProviderSelector.svelte';
+	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import WeatherProviderComparison from '$lib/components/WeatherProviderComparison.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
@@ -32,6 +32,7 @@
 	let comparisonData: any = {};
 	let hasUrlParams = false;
 	let urlParamsChecked = false; // Start with false to show loading by default
+	let showSettingsModal = false;
 	
 	// Load from URL parameters on mount
 	onMount(() => {
@@ -43,12 +44,14 @@
 		const endLat = params.get('end_lat');
 		const endLng = params.get('end_lng');
 		const travelTime = params.get('travel_time');
+		const preferredTime = params.get('preferred_time');
 		
 		if (startLat && startLng && endLat && endLng) {
 			start = { lat: parseFloat(startLat), lng: parseFloat(startLng) };
 			end = { lat: parseFloat(endLat), lng: parseFloat(endLng) };
 			startName = params.get('start_name') || '';
 			endName = params.get('end_name') || '';
+			preferredDepartureTime = preferredTime || '';
 			
 			if (travelTime) {
 				estimatedTravelTimeMinutes = parseInt(travelTime);
@@ -95,6 +98,9 @@
 			params.set('end_name', endName);
 		}
 		params.set('travel_time', estimatedTravelTimeMinutes.toString());
+		if (preferredDepartureTime) {
+			params.set('preferred_time', preferredDepartureTime);
+		}
 		
 		const newURL = `${window.location.pathname}?${params.toString()}`;
 		window.history.replaceState({}, '', newURL);
@@ -129,8 +135,38 @@
 		alert('Route link copied to clipboard! You can bookmark or share this link.');
 	}
 	
+	function swapLocations() {
+		const tempStart = { ...start };
+		const tempStartName = startName;
+		start = { ...end };
+		end = tempStart;
+		startName = endName;
+		endName = tempStartName;
+		
+		calculateDistance();
+		updateURL();
+	}
+	
 	function handleProviderChange(event: any) {
 		selectedProvider = event.detail.providerId;
+	}
+	
+	function handleSettingsModalProviderChange(event: any) {
+		selectedProvider = event.detail.providerId;
+	}
+	
+	function handlePreferredTimeChange(event: any) {
+		preferredDepartureTime = event.detail.preferredDepartureTime;
+		updateURL();
+	}
+	
+	function handleTravelTimeChange(event: any) {
+		estimatedTravelTimeMinutes = event.detail.estimatedTravelTimeMinutes;
+		updateURL();
+	}
+	
+	function openSettings() {
+		showSettingsModal = true;
 	}
 	
 	async function handleToggleComparison(event: any) {
@@ -177,9 +213,9 @@
 				<div class="max-w-2xl mx-auto px-4">
 					<header class="text-center mb-6">
 						<h1 class="{designSystem.typography.heading.main} mb-2">
-							🚴‍♂️ Smart Bike Weather
+							🚴‍♂️ BikeTime
 						</h1>
-						<p class="{designSystem.typography.body.main}">Find the perfect time to start your bike ride</p>
+						<p class="{designSystem.typography.body.main}">Find the perfect time to ride</p>
 					</header>
 
 					<div class="text-center mb-6">
@@ -244,9 +280,9 @@
 				<!-- Step 2: Weather Results -->
 				<header class="text-center mb-8">
 					<h1 class="{designSystem.typography.heading.main} mb-2">
-						🚴‍♂️ Smart Bike Weather
+						🚴‍♂️ BikeTime
 					</h1>
-					<p class="{designSystem.typography.body.main}">Find the perfect time to start your bike ride</p>
+					<p class="{designSystem.typography.body.main}">Find the perfect time to ride</p>
 				</header>
 
 				<div class="mb-4">
@@ -264,6 +300,12 @@
 							</div>
 							<button
 								class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
+								on:click={openSettings}
+							>
+								⚙️ Settings
+							</button>
+							<button
+								class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
 								on:click={shareRoute}
 							>
 								🔗 Share Route
@@ -274,27 +316,45 @@
 				
 				<!-- Route Summary -->
 				<Card class="mb-6">
-					<div class="flex items-center justify-center space-x-4 text-gray-700">
-						<span class="bg-gradient-to-r from-green-100 to-green-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-green-200/50">
-							🏠 {startName.length > 25 ? startName.substring(0, 25) + '...' : startName}
-						</span>
-						<span class="text-2xl {designSystem.animations.pulse}">→</span>
-						<span class="bg-gradient-to-r from-blue-100 to-blue-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-blue-200/50">
-							🏁 {endName.length > 25 ? endName.substring(0, 25) + '...' : endName}
-						</span>
+					<div class="space-y-4">
+						<div class="flex items-center justify-center space-x-4 text-gray-700">
+							<span class="bg-gradient-to-r from-green-100 to-green-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-green-200/50">
+								🏠 {startName.length > 25 ? startName.substring(0, 25) + '...' : startName}
+							</span>
+							<button 
+								class="text-2xl hover:text-blue-600 transition-colors cursor-pointer hover:scale-110 transform"
+								on:click={swapLocations}
+								title="Swap start and end locations"
+							>
+								🔄
+							</button>
+							<span class="bg-gradient-to-r from-blue-100 to-blue-50 px-4 py-2 rounded-full text-sm font-medium shadow-sm border border-blue-200/50">
+								🏁 {endName.length > 25 ? endName.substring(0, 25) + '...' : endName}
+							</span>
+						</div>
+						
+						<!-- Quick Preferred Time Input -->
+						{#if preferredDepartureTime}
+							<div class="flex items-center justify-center space-x-3 text-sm">
+								<span class="text-gray-600">⏰ Preferred departure:</span>
+								<input 
+									type="time" 
+									bind:value={preferredDepartureTime}
+									on:change={handlePreferredTimeChange}
+									class="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								/>
+								<button
+									type="button"
+									on:click={() => { preferredDepartureTime = ''; handlePreferredTimeChange({ detail: { preferredDepartureTime: '' }}); }}
+									class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
+								>
+									Clear
+								</button>
+							</div>
+						{/if}
 					</div>
 				</Card>
 				
-				<!-- Weather Provider Selection -->
-				<div class="mb-4">
-					<WeatherProviderSelector 
-						bind:selectedProvider
-						bind:availableProviders
-						bind:showComparison
-						on:providerChange={handleProviderChange}
-						on:toggleComparison={handleToggleComparison}
-					/>
-				</div>
 				
 				<!-- Provider Comparison -->
 				{#if showComparison}
@@ -340,5 +400,20 @@
 				</footer>
 			</div>
 		</div>
+		
+		<!-- Settings Modal -->
+		<SettingsModal 
+			bind:isOpen={showSettingsModal}
+			bind:selectedProvider
+			bind:availableProviders
+			bind:showComparison
+			bind:preferredDepartureTime
+			bind:estimatedTravelTimeMinutes
+			on:close={() => showSettingsModal = false}
+			on:providerChange={handleSettingsModalProviderChange}
+			on:toggleComparison={handleToggleComparison}
+			on:preferredTimeChange={handlePreferredTimeChange}
+			on:travelTimeChange={handleTravelTimeChange}
+		/>
 	{/if}
 {/if}

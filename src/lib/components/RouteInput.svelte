@@ -83,12 +83,14 @@
 			endName = location.name;
 		}
 		
-		// Update use count
-		locationHistory.addLocation({
-			name: location.name,
-			lat: location.lat,
-			lng: location.lng
-		});
+		// Update use count only if it's not an alias location
+		if (!location.isAlias) {
+			locationHistory.addLocation({
+				name: location.name,
+				lat: location.lat,
+				lng: location.lng
+			});
+		}
 		
 		// Emit update
 		dispatch('update', { start, end, startName, endName, preferredDepartureTime });
