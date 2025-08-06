@@ -1,0 +1,6 @@
+- Remember history of places searched
+- Add a possibility to add aliases for places ("Home", "Work") so that it's easier to see for the user where to and from they are goind. Then display it in the history, on the map, save the name in the url alongside coordinates...
+- Add an option to write how long you are willing to wait - e.g. 1 hour? Then show only results for 1 hour from now. It should be like a slider with two movable selectors that allows the user to look like up to 5 hours into the future with the possibility to also move the start (most people will not bike now but in 5-15 minutes?)
+- When I open the results, I would like to see a recomendation: Something like: Go in 30 minutes
+- When the graph is hovered, I would like to see the weather summary for that timeline there.
+- Overall make the design modern and sleek. Do some research on how to do that with tailwind. What is sleek design in 2025 for an app?

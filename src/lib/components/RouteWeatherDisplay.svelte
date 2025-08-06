@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BikeRouteMap from './BikeRouteMap.svelte';
+	import CurrentWeather from './CurrentWeather.svelte';
 	
 	interface Location {
 		lat: number;
@@ -183,13 +184,18 @@
 		</div>
 	{/if}
 
-		{#if loading}
-			<div class="text-center py-6">
-				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-				<p class="mt-2 text-gray-600 text-sm">Analyzing weather along your route...</p>
-				<p class="text-xs text-gray-500">Getting forecasts for multiple points along your path</p>
-			</div>
-		{/if}	{#if routeWeatherData}
+	{#if loading}
+		<div class="text-center py-6">
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+			<p class="mt-2 text-gray-600 text-sm">Analyzing weather along your route...</p>
+			<p class="text-xs text-gray-500">Getting forecasts for multiple points along your path</p>
+		</div>
+	{/if}
+	
+	{#if routeWeatherData}
+		<!-- Current Weather Conditions -->
+		<CurrentWeather lat={start.lat} lng={start.lng} showComparison={true} />
+		
 		<!-- Interactive Map -->
 		<div class="mb-4">
 			<BikeRouteMap 

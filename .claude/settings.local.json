@@ -9,7 +9,9 @@
       "Bash(npm run:*)",
       "WebFetch(domain:morecast.com)",
       "Bash(grep:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(test:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }
