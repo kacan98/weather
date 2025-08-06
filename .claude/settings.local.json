@@ -33,7 +33,9 @@
       "Bash(curl:*)",
       "Bash(npx:*)",
       "Bash(cat:*)",
-      "WebFetch(domain:www.weatherapi.com)"
+      "WebFetch(domain:www.weatherapi.com)",
+      "Bash(touch:*)",
+      "WebFetch(domain:docs.tomorrow.io)"
     ],
     "deny": []
   }

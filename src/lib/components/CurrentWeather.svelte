@@ -88,10 +88,10 @@
 			
 			<div class="bg-white rounded p-2">
 				<div class="text-sm text-gray-600">Wind</div>
-				<div class="font-semibold">{Math.round(currentWeather.current.wind_kph)} km/h</div>
+				<div class="font-semibold">{(currentWeather.current.wind_kph / 3.6).toFixed(1)} m/s</div>
 				<div class="text-xs text-gray-500">{currentWeather.current.wind_dir}</div>
 				{#if currentWeather.current.gust_kph > currentWeather.current.wind_kph}
-					<div class="text-xs text-orange-600">Gusts: {Math.round(currentWeather.current.gust_kph)} km/h</div>
+					<div class="text-xs text-orange-600">Gusts: {(currentWeather.current.gust_kph / 3.6).toFixed(1)} m/s</div>
 				{/if}
 			</div>
 		</div>

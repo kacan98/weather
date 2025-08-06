@@ -99,15 +99,19 @@ export class OpenWeatherMapProvider extends BaseWeatherProvider {
 			temperature: data.main?.temp ?? 0,
 			feelsLike: data.main?.feels_like ?? 0,
 			humidity: data.main?.humidity ?? 0,
-			windSpeed: this.mpsToKmh(data.wind?.speed ?? 0),
+			windSpeed: (data.wind?.speed ?? 0) * 3.6, // Convert m/s to km/h
 			windDirection: this.getWindDirection(data.wind?.deg ?? 0),
+			windGust: (data.wind?.gust ?? data.wind?.speed ?? 0) * 3.6,
 			precipitation: data.rain?.['3h'] ?? data.rain?.['1h'] ?? 0,
 			rainChance: data.pop ? data.pop * 100 : 0,
 			visibility: (data.visibility ?? 10000) / 1000,
 			uvIndex: 0, // Not available in free tier
-			condition: data.weather?.[0]?.description ?? '',
+			pressure: data.main?.pressure ?? 1013,
+			condition: data.weather?.[0]?.main ?? '',
+			description: data.weather?.[0]?.description ?? '',
 			icon: data.weather?.[0]?.icon ? `https://openweathermap.org/img/w/${data.weather[0].icon}.png` : undefined,
-			timestamp
+			isDay: data.weather?.[0]?.icon?.endsWith('d') ?? true,
+			time: timestamp
 		};
 	}
 	
@@ -122,14 +126,28 @@ export class OpenWeatherMapProvider extends BaseWeatherProvider {
 			temperature: interpolate(current.main.temp, next.main.temp),
 			feelsLike: interpolate(current.main.feels_like, next.main.feels_like),
 			humidity: Math.round(interpolate(current.main.humidity, next.main.humidity)),
-			windSpeed: this.mpsToKmh(interpolate(current.wind.speed, next.wind.speed)),
+			windSpeed: interpolate(current.wind.speed, next.wind.speed) * 3.6,
 			windDirection: this.getWindDirection(interpolate(current.wind.deg ?? 0, next.wind.deg ?? 0)),
+			windGust: interpolate(current.wind.gust ?? current.wind.speed, next.wind.gust ?? next.wind.speed) * 3.6,
 			precipitation: interpolate(current.rain?.['3h'] ?? 0, next.rain?.['3h'] ?? 0) / 3,
 			rainChance: interpolate((current.pop ?? 0) * 100, (next.pop ?? 0) * 100),
 			visibility: interpolate(current.visibility ?? 10000, next.visibility ?? 10000) / 1000,
 			uvIndex: 0,
-			condition: ratio < 0.5 ? current.weather?.[0]?.description : next.weather?.[0]?.description,
-			timestamp: interpTime
+			pressure: interpolate(current.main.pressure, next.main.pressure),
+			condition: ratio < 0.5 ? current.weather?.[0]?.main : next.weather?.[0]?.main,
+			description: ratio < 0.5 ? current.weather?.[0]?.description : next.weather?.[0]?.description,
+			icon: ratio < 0.5 ? 
+				(current.weather?.[0]?.icon ? `https://openweathermap.org/img/w/${current.weather[0].icon}.png` : undefined) :
+				(next.weather?.[0]?.icon ? `https://openweathermap.org/img/w/${next.weather[0].icon}.png` : undefined),
+			isDay: ratio < 0.5 ? current.weather?.[0]?.icon?.endsWith('d') : next.weather?.[0]?.icon?.endsWith('d'),
+			time: interpTime
 		};
+	}
+	
+	private getWindDirection(degrees: number): string {
+		const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+						   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+		const index = Math.round(degrees / 22.5) % 16;
+		return directions[index];
 	}
 }

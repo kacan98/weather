@@ -18,42 +18,28 @@
 	}
 </script>
 
-<div class="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg p-4 shadow-sm">
-	<div class="flex items-center justify-between mb-3">
-		<h3 class="font-semibold text-gray-800">Weather Provider</h3>
-		{#if availableProviders.length > 1}
-			<button
-				onclick={toggleComparison}
-				class="text-sm text-blue-600 hover:text-blue-800 transition-colors"
-			>
-				{showComparison ? 'Hide' : 'Compare'} Providers
-			</button>
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+	<div class="flex items-center justify-between">
+		<span class="text-sm text-gray-600 mr-3">Weather Source:</span>
+		{#if availableProviders.length > 0}
+			<div class="flex gap-2">
+				{#each availableProviders as provider}
+					<button
+						class="px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors {
+							selectedProvider === provider.id 
+								? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
+								: 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
+						}"
+						on:click={() => handleProviderChange(provider.id)}
+					>
+						{provider.name}
+					</button>
+				{/each}
+			</div>
+		{:else}
+			<div class="text-sm text-gray-500">
+				Loading providers...
+			</div>
 		{/if}
 	</div>
-	
-	{#if availableProviders.length > 0}
-		<div class="space-y-2">
-			{#each availableProviders as provider}
-				<label class="flex items-center space-x-2 cursor-pointer group">
-					<input
-						type="radio"
-						bind:group={selectedProvider}
-						value={provider.id}
-						onchange={() => handleProviderChange(provider.id)}
-						class="text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
-						{provider.name}
-					</span>
-					<span class="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-						Available
-					</span>
-				</label>
-			{/each}
-		</div>
-	{:else}
-		<div class="text-sm text-gray-500">
-			No weather providers available. Please check your API keys.
-		</div>
-	{/if}
 </div>

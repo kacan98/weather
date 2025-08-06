@@ -11,50 +11,107 @@ export class TomorrowProvider extends BaseWeatherProvider {
 	}
 	
 	async getCurrentWeather(lat: number, lon: number): Promise<WeatherCondition> {
-		const url = `${this.baseUrl}/weather/realtime?location=${lat},${lon}&apikey=${this.apiKey}`;
-		const response = await fetch(url);
+		// Tomorrow.io uses location parameter with lat,lon format
+		const url = `${this.baseUrl}/weather/realtime?location=${lat},${lon}&apikey=${this.apiKey}&units=metric`;
 		
-		if (!response.ok) {
-			throw new Error(`Tomorrow.io error: ${response.statusText}`);
+		try {
+			const response = await fetch(url);
+			
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('Tomorrow.io realtime API error:', response.status, errorText);
+				throw new Error(`Tomorrow.io error: ${response.status} ${response.statusText}`);
+			}
+			
+			const data = await response.json();
+			console.log('Tomorrow.io realtime response:', data);
+			
+			// The response structure is data.data.values
+			if (!data.data || !data.data.values) {
+				console.error('Unexpected Tomorrow.io realtime response structure:', data);
+				throw new Error('Invalid response from Tomorrow.io');
+			}
+			
+			return this.mapToWeatherCondition(data.data.values, data.data.time);
+		} catch (error) {
+			console.error('Tomorrow.io getCurrentWeather error:', error);
+			throw error;
 		}
-		
-		const data = await response.json();
-		return this.mapToWeatherCondition(data.data.values, new Date());
 	}
 	
 	async getHourlyForecast(lat: number, lon: number, hours: number = 24): Promise<WeatherCondition[]> {
-		const endTime = new Date();
-		endTime.setHours(endTime.getHours() + hours);
+		// For forecast, we use the timelines endpoint
+		const now = new Date();
+		const endTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
 		
-		const url = `${this.baseUrl}/weather/forecast?location=${lat},${lon}&timesteps=1h&endTime=${endTime.toISOString()}&apikey=${this.apiKey}`;
-		const response = await fetch(url);
+		// Build the fields parameter with all the fields we need
+		const fields = [
+			'temperature',
+			'temperatureApparent',
+			'humidity',
+			'windSpeed',
+			'windDirection',
+			'windGust',
+			'precipitationIntensity',
+			'precipitationProbability',
+			'weatherCode',
+			'visibility',
+			'uvIndex',
+			'pressureSurfaceLevel'
+		].join(',');
 		
-		if (!response.ok) {
-			throw new Error(`Tomorrow.io error: ${response.statusText}`);
+		const url = `${this.baseUrl}/timelines?location=${lat},${lon}&fields=${fields}&timesteps=1h&startTime=${now.toISOString()}&endTime=${endTime.toISOString()}&apikey=${this.apiKey}&units=metric`;
+		
+		try {
+			const response = await fetch(url);
+			
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('Tomorrow.io timelines API error:', response.status, errorText);
+				throw new Error(`Tomorrow.io error: ${response.status} ${response.statusText}`);
+			}
+			
+			const data = await response.json();
+			console.log('Tomorrow.io timelines response:', data);
+			
+			// The response structure is data.data.timelines[0].intervals
+			const timeline = data.data?.timelines?.[0];
+			if (!timeline || !timeline.intervals) {
+				console.error('Unexpected Tomorrow.io timelines response structure:', data);
+				return [];
+			}
+			
+			return timeline.intervals.slice(0, hours).map((interval: any) => {
+				const time = interval.startTime || new Date().toISOString();
+				const values = interval.values || {};
+				return this.mapToWeatherCondition(values, time);
+			});
+		} catch (error) {
+			console.error('Tomorrow.io getHourlyForecast error:', error);
+			throw error;
 		}
-		
-		const data = await response.json();
-		
-		return data.timelines.hourly.slice(0, hours).map((hour: any) =>
-			this.mapToWeatherCondition(hour.values, new Date(hour.time))
-		);
 	}
 	
 	async getForecast(lat: number, lon: number): Promise<WeatherForecast> {
-		const [current, hourly] = await Promise.all([
-			this.getCurrentWeather(lat, lon),
-			this.getHourlyForecast(lat, lon, 24)
-		]);
-		
-		return {
-			location: {
-				name: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
-				lat,
-				lon
-			},
-			current,
-			hourly
-		};
+		try {
+			const [current, hourly] = await Promise.all([
+				this.getCurrentWeather(lat, lon),
+				this.getHourlyForecast(lat, lon, 24)
+			]);
+			
+			return {
+				location: {
+					name: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
+					lat,
+					lon
+				},
+				current,
+				hourly
+			};
+		} catch (error) {
+			console.error('Tomorrow.io getForecast error:', error);
+			throw error;
+		}
 	}
 	
 	async searchLocation(query: string): Promise<SearchResult[]> {
@@ -63,32 +120,54 @@ export class TomorrowProvider extends BaseWeatherProvider {
 		return [];
 	}
 	
-	private mapToWeatherCondition(data: any, timestamp: Date): WeatherCondition {
+	private mapToWeatherCondition(data: any, timeString: string | undefined): WeatherCondition {
+		// Safely parse the time
+		let validTime: Date;
+		try {
+			validTime = timeString ? new Date(timeString) : new Date();
+			if (isNaN(validTime.getTime())) {
+				validTime = new Date();
+			}
+		} catch {
+			validTime = new Date();
+		}
+		
+		// Map Tomorrow.io fields to our WeatherCondition interface
 		return {
 			temperature: data.temperature ?? 0,
 			feelsLike: data.temperatureApparent ?? data.temperature ?? 0,
 			humidity: data.humidity ?? 0,
-			windSpeed: this.mpsToKmh(data.windSpeed ?? 0),
-			windDirection: this.getWindDirection(data.windDirection ?? 0),
+			windSpeed: (data.windSpeed ?? 0) * 3.6, // Convert m/s to km/h
+			windDirection: data.windDirection ? this.getWindDirection(data.windDirection) : 'N',
+			windGust: ((data.windGust ?? data.windSpeed ?? 0) * 3.6),
 			precipitation: data.precipitationIntensity ?? 0,
 			rainChance: data.precipitationProbability ?? 0,
-			visibility: (data.visibility ?? 10) * 1000 / 1000, // Convert from miles to km
+			visibility: data.visibility ?? 10, // Already in km
 			uvIndex: data.uvIndex ?? 0,
+			pressure: data.pressureSurfaceLevel ?? 1013,
 			condition: this.mapWeatherCode(data.weatherCode ?? 0),
-			timestamp
+			description: this.mapWeatherCode(data.weatherCode ?? 0),
+			icon: undefined, // Tomorrow.io doesn't provide icon URLs directly
+			isDay: true, // Would need to calculate based on sunrise/sunset
+			time: validTime
 		};
 	}
 	
 	private mapWeatherCode(code: number): string {
+		// Tomorrow.io weather codes
+		// https://docs.tomorrow.io/reference/weather-codes
 		const weatherCodes: Record<number, string> = {
 			0: 'Unknown',
-			1000: 'Clear, Sunny',
+			1000: 'Clear',
+			1001: 'Cloudy',
 			1100: 'Mostly Clear',
 			1101: 'Partly Cloudy',
 			1102: 'Mostly Cloudy',
-			1001: 'Cloudy',
 			2000: 'Fog',
 			2100: 'Light Fog',
+			3000: 'Light Wind',
+			3001: 'Wind',
+			3002: 'Strong Wind',
 			4000: 'Drizzle',
 			4001: 'Rain',
 			4200: 'Light Rain',
@@ -107,6 +186,6 @@ export class TomorrowProvider extends BaseWeatherProvider {
 			8000: 'Thunderstorm'
 		};
 		
-		return weatherCodes[code] ?? 'Unknown';
+		return weatherCodes[code] || 'Unknown';
 	}
 }

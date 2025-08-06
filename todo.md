@@ -1,12 +1,12 @@
 # Todo List
 
 ## Weather Provider Features
-- [ ] Create weather provider abstraction layer
-- [ ] Refactor WeatherAPI into provider pattern
-- [ ] Add OpenWeatherMap provider
-- [ ] Add Tomorrow.io provider  
+- [x] Create weather provider abstraction layer
+- [x] Refactor WeatherAPI into provider pattern
+- [x] Add OpenWeatherMap provider
+- [x] Add Tomorrow.io provider  
 - [ ] Add provider selection toggle in UI
-- [ ] Implement automatic fallback between providers
+- [x] Implement automatic fallback between providers
 - [ ] Add provider comparison view
 
 ## Place Management

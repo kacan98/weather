@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { WEATHER_API_KEY } from '$env/static/private';
+import { WEATHER_API_KEY, OPENWEATHERMAP_API_KEY, TOMORROW_API_KEY } from '$env/static/private';
 import type { RequestHandler } from './$types';
 import { WeatherService } from '$lib/weather/weather-service';
 import type { WeatherCondition } from '$lib/weather/types';
@@ -75,6 +75,14 @@ async function initializeWeatherService() {
 		configs.weatherapi = { apiKey: WEATHER_API_KEY, priority: 1, enabled: true };
 	}
 	
+	if (OPENWEATHERMAP_API_KEY) {
+		configs.openweathermap = { apiKey: OPENWEATHERMAP_API_KEY, priority: 2, enabled: true };
+	}
+	
+	if (TOMORROW_API_KEY) {
+		configs.tomorrow = { apiKey: TOMORROW_API_KEY, priority: 3, enabled: true };
+	}
+	
 	await weatherService.initialize(configs);
 	weatherServiceInitialized = true;
 }
@@ -137,7 +145,7 @@ function calculateBikeRating(weather: WeatherCondition): { score: number; factor
 		factors.push('Moderate wind');
 	}
 
-	// Rain and precipitation
+	// Rain and precipitation - combined scoring
 	const conditionText = weather.condition.toLowerCase();
 	const isSnowing = conditionText.includes('snow') || 
 					  conditionText.includes('sleet') || 
@@ -146,24 +154,43 @@ function calculateBikeRating(weather: WeatherCondition): { score: number; factor
 	if (isSnowing) {
 		score -= 5;
 		factors.push('Snow/sleet conditions');
-	} else if (weather.precipitation > 5) {
-		score -= 4;
-		factors.push('Heavy rain');
-	} else if (weather.precipitation > 2) {
-		score -= 3;
-		factors.push('Moderate rain');
-	} else if (weather.precipitation > 0.5) {
-		score -= 2;
-		factors.push('Light rain');
-	} else if (weather.rainChance > 80) {
-		score -= 2;
-		factors.push('Very high chance of rain');
-	} else if (weather.rainChance > 60) {
-		score -= 1;
-		factors.push('High chance of rain');
-	} else if (weather.rainChance > 40) {
-		score -= 0.5;
-		factors.push('Moderate chance of rain');
+	} else {
+		// Calculate a combined rain impact score based on both precipitation and probability
+		// Actual precipitation is weighted more heavily than probability
+		let rainImpact = 0;
+		
+		// Precipitation amount scoring (weight: 70%)
+		if (weather.precipitation > 5) {
+			rainImpact += 4;
+			factors.push('Heavy rain (>5mm)');
+		} else if (weather.precipitation > 2) {
+			rainImpact += 3;
+			factors.push('Moderate rain (2-5mm)');
+		} else if (weather.precipitation > 0.5) {
+			rainImpact += 2;
+			factors.push('Light rain (0.5-2mm)');
+		} else if (weather.precipitation > 0.1) {
+			rainImpact += 1;
+			factors.push('Drizzle (<0.5mm)');
+		}
+		
+		// Rain probability scoring (weight: 30%)
+		// Only matters if there's no actual precipitation yet
+		if (weather.precipitation <= 0.1) {
+			if (weather.rainChance > 80) {
+				rainImpact += 1.5;
+				factors.push('Very high rain probability');
+			} else if (weather.rainChance > 60) {
+				rainImpact += 1;
+				factors.push('High rain probability');
+			} else if (weather.rainChance > 40) {
+				rainImpact += 0.5;
+				factors.push('Moderate rain probability');
+			}
+		}
+		
+		// Apply the combined rain impact
+		score -= Math.min(rainImpact, 4); // Cap at -4 to avoid over-penalizing
 	}
 
 	// Visibility

@@ -154,9 +154,20 @@
 	}
 
 	let lastFetchKey = '';
+	let lastProvider = selectedProvider;
 	
 	// Create a unique key to prevent infinite loops
 	$: fetchKey = `${start.lat}-${start.lng}-${end.lat}-${end.lng}-${selectedProvider}`;
+	
+	// Clear data and show loading when provider changes
+	$: if (selectedProvider !== lastProvider) {
+		lastProvider = selectedProvider;
+		routeWeatherData = null;
+		error = '';
+		if (start.lat && start.lng && end.lat && end.lng) {
+			loading = true;
+		}
+	}
 	
 	// Only auto-fetch when autoFetch is enabled and both locations are valid, and we haven't fetched this exact combination yet
 	$: if (autoFetch && start.lat && start.lng && end.lat && end.lng && fetchKey !== lastFetchKey && !loading) {
@@ -166,31 +177,6 @@
 </script>
 
 <div class="bg-white rounded-lg shadow-md p-4">
-	<div class="flex justify-between items-center mb-4">
-		<h2 class="text-lg font-semibold">🗺️ Route Weather Analysis</h2>
-		<div class="flex items-center space-x-2">
-			<input 
-				type="number" 
-				bind:value={estimatedTravelTimeMinutes}
-				min="5"
-				max="180"
-				step="5"
-				class="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-			/>
-			<span class="text-sm text-gray-600">min</span>
-			<button
-				class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 text-sm cursor-pointer transition-colors"
-				on:click={fetchRouteWeather}
-				disabled={loading || !start.lat || !end.lat}
-			>
-				{#if loading}
-					<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-				{:else}
-					🔄 Analyze Route
-				{/if}
-			</button>
-		</div>
-	</div>
 
 	{#if error}
 		<div class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-3 text-sm">
@@ -200,10 +186,11 @@
 	{/if}
 
 	{#if loading}
-		<div class="text-center py-6">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-			<p class="mt-2 text-gray-600 text-sm">Analyzing weather along your route...</p>
-			<p class="text-xs text-gray-500">Getting forecasts for multiple points along your path</p>
+		<div class="text-center py-12 bg-gray-50 rounded-lg">
+			<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+			<h3 class="text-lg font-medium text-gray-800 mb-2">Loading Weather Data</h3>
+			<p class="text-gray-600 text-sm mb-1">Fetching forecasts from {selectedProvider === 'weatherapi' ? 'WeatherAPI' : selectedProvider === 'openweathermap' ? 'OpenWeatherMap' : 'Tomorrow.io'}</p>
+			<p class="text-xs text-gray-500">Analyzing multiple points along your route...</p>
 		</div>
 	{/if}
 	
@@ -227,13 +214,21 @@
 		</div>
 		
 		<div class="space-y-4">
-			<!-- Route Info - Compact -->
+			<!-- Route Info - Compact with Provider -->
 			<div class="bg-blue-50 rounded p-3">
-				<p class="text-sm">
-					<strong>📍 {routeWeatherData.location.name}</strong> • 
-					{routeWeatherData.route.estimatedTravelTimeMinutes} min ride • 
-					Next 3 hours
-				</p>
+				<div class="flex items-center justify-between">
+					<p class="text-sm">
+						<strong>📍 {routeWeatherData.location.name}</strong> • 
+						{routeWeatherData.route.estimatedTravelTimeMinutes} min ride • 
+						Next 3 hours
+					</p>
+					<div class="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+						📡 {routeWeatherData.provider === 'weatherapi' ? 'WeatherAPI' : 
+							 routeWeatherData.provider === 'openweathermap' ? 'OpenWeatherMap' : 
+							 routeWeatherData.provider === 'tomorrow' ? 'Tomorrow.io' : 
+							 routeWeatherData.provider || 'Unknown'}
+					</div>
+				</div>
 			</div>
 
 			<!-- Weather Rating Chart -->
@@ -364,9 +359,9 @@
 								</div>
 
 								<div class="text-xs space-y-1">
-									<p>💨 {point.weather.wind_kph} km/h</p>
-									<p class="{point.weather.chance_of_rain > 50 ? 'text-blue-600' : 'text-gray-600'}">
-										🌧️ {point.weather.chance_of_rain}%
+									<p>💨 {(point.weather.wind_kph / 3.6).toFixed(1)} m/s</p>
+									<p class="{point.weather.precip_mm > 0.5 ? 'text-blue-600' : 'text-gray-600'}">
+										💧 {point.weather.precip_mm.toFixed(1)} mm
 									</p>
 								</div>
 

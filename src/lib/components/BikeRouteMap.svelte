@@ -271,8 +271,8 @@
 						</div>
 						<div class="text-xs text-gray-600 mb-1">${startWeather.weather.condition}</div>
 						<div class="text-xs space-y-0.5 mb-2">
-							<div>💨 ${startWeather.weather.wind_kph}km/h</div>
-							<div>🌧️ ${startWeather.weather.chance_of_rain}%</div>
+							<div>💨 ${(startWeather.weather.wind_kph / 3.6).toFixed(1)} m/s</div>
+							<div>💧 ${startWeather.weather.precip_mm.toFixed(1)} mm</div>
 						</div>
 						<div class="px-2 py-1 rounded text-xs font-medium" 
 							 style="background-color: ${getRatingColor(startWeather.bikeRating.score)}; color: white;">
@@ -320,8 +320,8 @@
 							</div>
 							<div class="text-xs text-gray-600 mb-1">${endWeather.weather.condition}</div>
 							<div class="text-xs space-y-0.5 mb-2">
-								<div>💨 ${endWeather.weather.wind_kph}km/h</div>
-								<div>🌧️ ${endWeather.weather.chance_of_rain}%</div>
+								<div>💨 ${(endWeather.weather.wind_kph / 3.6).toFixed(1)} m/s</div>
+								<div>💧 ${endWeather.weather.precip_mm.toFixed(1)} mm</div>
 							</div>
 							<div class="px-2 py-1 rounded text-xs font-medium" 
 								 style="background-color: ${getRatingColor(endWeather.bikeRating.score)}; color: white;">

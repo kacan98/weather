@@ -25,10 +25,12 @@
 	let availableProviders: any[] = [];
 	let showComparison = false;
 	let comparisonData: any = {};
+	let hasUrlParams = false;
 	
 	// Load from URL parameters on mount
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
+		hasUrlParams = params.has('start_lat');
 		
 		const startLat = params.get('start_lat');
 		const startLng = params.get('start_lng');
@@ -67,6 +69,9 @@
 				Math.sin(dLng/2) * Math.sin(dLng/2);
 		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 		distance = R * c; // Distance in km
+		
+		// Calculate estimated travel time (assuming 15 km/h average cycling speed)
+		estimatedTravelTimeMinutes = Math.round(distance * 4); // 60 min / 15 km = 4 min/km
 	}
 	
 	// Update URL parameters
@@ -151,7 +156,7 @@
 			<p class="text-gray-600 text-sm">Find the perfect time to start your bike ride</p>
 		</header>
 		
-		{#if initialLoad && (new URLSearchParams(window?.location?.search).get('start_lat'))}
+		{#if initialLoad && hasUrlParams}
 			<!-- Loading screen for URL-based routes -->
 			<div class="max-w-2xl mx-auto text-center">
 				<div class="bg-white rounded-lg shadow-md p-8">
@@ -211,7 +216,7 @@
 					
 					<div class="flex items-center space-x-4">
 						<div class="text-sm text-gray-600">
-							📏 {distance.toFixed(1)} km • 🚴‍♂️ ~{Math.round(distance * 3.5)} min
+							📏 {distance.toFixed(1)} km • 🚴‍♂️ ~{estimatedTravelTimeMinutes} min
 						</div>
 						<button
 							class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
@@ -266,7 +271,12 @@
 		{/if}
 		
 		<footer class="text-center mt-8 text-xs text-gray-500">
-			<p>Weather data from <a href="https://www.weatherapi.com/" class="underline hover:text-blue-600 cursor-pointer">WeatherAPI.com</a> • Address search by <a href="https://nominatim.openstreetmap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenStreetMap</a></p>
+			<p>Weather providers: 
+				<a href="https://www.weatherapi.com/" class="underline hover:text-blue-600 cursor-pointer">WeatherAPI</a> • 
+				<a href="https://openweathermap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenWeatherMap</a> • 
+				<a href="https://www.tomorrow.io/" class="underline hover:text-blue-600 cursor-pointer">Tomorrow.io</a> • 
+				Address search by <a href="https://nominatim.openstreetmap.org/" class="underline hover:text-blue-600 cursor-pointer">OpenStreetMap</a>
+			</p>
 		</footer>
 	</div>
 </div>
