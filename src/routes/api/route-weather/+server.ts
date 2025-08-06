@@ -102,57 +102,101 @@ function calculateCyclingDistance(start: { lat: number; lng: number }, end: { la
 	return distance * 1.15;
 }
 
-function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: number = 0): { score: number; factors: string[] } {
+// Utility function to fix floating point precision issues
+function roundToDecimal(value: number, decimals: number = 1): number {
+	return Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals);
+}
+
+/**
+ * BIKE RATING CALCULATION METHODOLOGY
+ * 
+ * Base Score: 10.0 (perfect conditions)
+ * 
+ * PENALTIES (subtract from score):
+ * 
+ * 1. TEMPERATURE:
+ *    - Dangerously cold (<-5°C): -4.0
+ *    - Very cold (-5°C to 0°C): -3.0  
+ *    - Cold (0°C to 5°C): -2.0
+ *    - Cool (5°C to 10°C): -1.0
+ *    - Hot (25°C to 30°C): -1.0
+ *    - Very hot (30°C to 35°C): -2.0
+ *    - Dangerously hot (>35°C): -3.0
+ * 
+ * 2. WIND (realistic cycling thresholds):
+ *    - Dangerous (>50 km/h): -3.0
+ *    - Very strong (35-50 km/h): -2.0
+ *    - Strong (25-35 km/h): -1.0
+ *    - Moderate (20-25 km/h): -0.5
+ * 
+ * 3. PRECIPITATION & RAIN:
+ *    - Snow/sleet: -5.0
+ *    - Heavy rain (>5mm): -4.0
+ *    - Moderate rain (2-5mm): -3.0
+ *    - Light rain (0.5-2mm): -2.0
+ *    - Drizzle (<0.5mm): -1.0
+ *    - Rain probability (only if no actual precipitation):
+ *      * >80% chance: -1.5
+ *      * 60-80% chance: -1.0
+ *      * 40-60% chance: -0.5
+ * 
+ * 4. VISIBILITY:
+ *    - Dangerous (<0.5km): -4.0
+ *    - Very poor (0.5-1km): -3.0
+ *    - Reduced (1-5km): -1.0
+ * 
+ * 5. UV INDEX:
+ *    - Extreme (≥11): -0.5
+ * 
+ * BONUSES (add to score):
+ * 
+ * 1. PERFECT CONDITIONS (15-24°C, <10km/h wind, <10% rain chance, 0mm precipitation): +1.0
+ * 
+ * FINAL SCORE: Clamped between 1.0 and 10.0, based purely on weather conditions
+ * 
+ * OVERALL ROUTE RATING: Average of all weather points along the route
+ */
+function calculateBikeRating(weather: WeatherCondition): { score: number; factors: string[] } {
 	let score = 10;
 	const factors: string[] = [];
 
-	// Time penalty: prefer leaving sooner rather than later
-	// Reduce score by 0.1 for every 15 minutes of delay (max penalty of 0.8 for 2 hours)
-	const timePenalty = Math.min(departureDelayMinutes / 15 * 0.1, 0.8);
-	if (timePenalty > 0) {
-		score -= timePenalty;
-		if (departureDelayMinutes >= 60) {
-			factors.push(`Better to leave sooner (+${Math.round(timePenalty * 10)/10} penalty)`);
-		}
-	}
-
 	// Temperature scoring
 	if (weather.temperature < -5) {
-		score -= 4;
-		factors.push('Dangerously cold');
+		score = roundToDecimal(score - 4);
+		factors.push('Dangerously cold (-4.0)');
 	} else if (weather.temperature < 0) {
-		score -= 3;
-		factors.push('Very cold temperature');
+		score = roundToDecimal(score - 3);
+		factors.push('Very cold temperature (-3.0)');
 	} else if (weather.temperature < 5) {
-		score -= 2;
-		factors.push('Cold temperature');
+		score = roundToDecimal(score - 2);
+		factors.push('Cold temperature (-2.0)');
 	} else if (weather.temperature < 10) {
-		score -= 1;
-		factors.push('Cool temperature');
+		score = roundToDecimal(score - 1);
+		factors.push('Cool temperature (-1.0)');
 	} else if (weather.temperature > 35) {
-		score -= 3;
-		factors.push('Dangerously hot');
+		score = roundToDecimal(score - 3);
+		factors.push('Dangerously hot (-3.0)');
 	} else if (weather.temperature > 30) {
-		score -= 2;
-		factors.push('Very hot temperature');
+		score = roundToDecimal(score - 2);
+		factors.push('Very hot temperature (-2.0)');
 	} else if (weather.temperature > 25) {
-		score -= 1;
-		factors.push('Hot temperature');
+		score = roundToDecimal(score - 1);
+		factors.push('Hot temperature (-1.0)');
 	}
 
 	// Wind scoring - reduced penalties for more realistic cycling conditions
 	if (weather.windSpeed > 50) {
-		score -= 3;
-		factors.push('Dangerous wind speeds');
+		score = roundToDecimal(score - 3);
+		factors.push('Dangerous wind speeds (-3.0)');
 	} else if (weather.windSpeed > 35) {
-		score -= 2;
-		factors.push('Very strong wind');
+		score = roundToDecimal(score - 2);
+		factors.push('Very strong wind (-2.0)');
 	} else if (weather.windSpeed > 25) {
-		score -= 1;
-		factors.push('Strong wind');
+		score = roundToDecimal(score - 1);
+		factors.push('Strong wind (-1.0)');
 	} else if (weather.windSpeed > 20) {
-		score -= 0.5;
-		factors.push('Moderate wind');
+		score = roundToDecimal(score - 0.5);
+		factors.push('Moderate wind (-0.5)');
 	}
 
 	// Rain and precipitation - combined scoring
@@ -162,8 +206,8 @@ function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: n
 					  conditionText.includes('blizzard');
 
 	if (isSnowing) {
-		score -= 5;
-		factors.push('Snow/sleet conditions');
+		score = roundToDecimal(score - 5);
+		factors.push('Snow/sleet conditions (-5.0)');
 	} else {
 		// Calculate a combined rain impact score based on both precipitation and probability
 		// Actual precipitation is weighted more heavily than probability
@@ -172,16 +216,16 @@ function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: n
 		// Precipitation amount scoring (weight: 70%)
 		if (weather.precipitation > 5) {
 			rainImpact += 4;
-			factors.push('Heavy rain (>5mm)');
+			factors.push('Heavy rain >5mm (-4.0)');
 		} else if (weather.precipitation > 2) {
 			rainImpact += 3;
-			factors.push('Moderate rain (2-5mm)');
+			factors.push('Moderate rain 2-5mm (-3.0)');
 		} else if (weather.precipitation > 0.5) {
 			rainImpact += 2;
-			factors.push('Light rain (0.5-2mm)');
+			factors.push('Light rain 0.5-2mm (-2.0)');
 		} else if (weather.precipitation > 0.1) {
 			rainImpact += 1;
-			factors.push('Drizzle (<0.5mm)');
+			factors.push('Drizzle <0.5mm (-1.0)');
 		}
 		
 		// Rain probability scoring (weight: 30%)
@@ -189,63 +233,150 @@ function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: n
 		if (weather.precipitation <= 0.1) {
 			if (weather.rainChance > 80) {
 				rainImpact += 1.5;
-				factors.push('Very high rain probability');
+				factors.push('Very high rain probability (-1.5)');
 			} else if (weather.rainChance > 60) {
 				rainImpact += 1;
-				factors.push('High rain probability');
+				factors.push('High rain probability (-1.0)');
 			} else if (weather.rainChance > 40) {
 				rainImpact += 0.5;
-				factors.push('Moderate rain probability');
+				factors.push('Moderate rain probability (-0.5)');
 			}
 		}
 		
 		// Apply the combined rain impact
-		score -= Math.min(rainImpact, 4); // Cap at -4 to avoid over-penalizing
+		const rainPenalty = roundToDecimal(Math.min(rainImpact, 4)); // Cap at -4 to avoid over-penalizing
+		score = roundToDecimal(score - rainPenalty);
 	}
 
 	// Visibility
 	if (weather.visibility < 0.5) {
-		score -= 4;
-		factors.push('Dangerous visibility');
+		score = roundToDecimal(score - 4);
+		factors.push('Dangerous visibility (-4.0)');
 	} else if (weather.visibility < 1) {
-		score -= 3;
-		factors.push('Very poor visibility');
+		score = roundToDecimal(score - 3);
+		factors.push('Very poor visibility (-3.0)');
 	} else if (weather.visibility < 5) {
-		score -= 1;
-		factors.push('Reduced visibility');
+		score = roundToDecimal(score - 1);
+		factors.push('Reduced visibility (-1.0)');
 	}
 
 	// UV
 	if (weather.uvIndex >= 11) {
-		factors.push('Extreme UV - avoid if possible');
-		score -= 0.5;
+		score = roundToDecimal(score - 0.5);
+		factors.push('Extreme UV - avoid if possible (-0.5)');
 	} else if (weather.uvIndex >= 8) {
 		factors.push('Very high UV - wear sunscreen');
 	} else if (weather.uvIndex >= 6) {
 		factors.push('High UV - sun protection recommended');
 	}
 
-	// Perfect conditions bonus (extra bonus for leaving now)
+	// Perfect conditions bonus
 	if (weather.temperature >= 15 && weather.temperature <= 24 && 
 		weather.windSpeed < 10 && 
 		weather.rainChance < 10 && 
 		weather.precipitation === 0) {
-		const perfectBonus = departureDelayMinutes === 0 ? 1.5 : 1.0; // Extra bonus for leaving now
-		score += perfectBonus;
-		if (departureDelayMinutes === 0) {
-			factors.push('Perfect weather - go now!');
+		score = roundToDecimal(score + 1.0);
+		factors.push('Perfect biking weather! (+1.0)');
+	}
+
+	return { score: roundToDecimal(Math.max(1, Math.min(10, score))), factors };
+}
+
+/**
+ * Generate intelligent departure recommendation based on weather analysis
+ */
+function generateDepartureRecommendation(departureOptions: DepartureOption[]): {
+	bestIndex: number;
+	recommendation: string;
+	reasoning: string;
+} {
+	if (departureOptions.length === 0) {
+		return {
+			bestIndex: 0,
+			recommendation: "No departure options available",
+			reasoning: ""
+		};
+	}
+
+	// Find the actual best weather conditions (highest score)
+	const bestOption = departureOptions.reduce((best, current) => 
+		current.overallBikeRating.score > best.overallBikeRating.score ? current : best
+	);
+	const bestIndex = departureOptions.indexOf(bestOption);
+	const bestScore = bestOption.overallBikeRating.score;
+	
+	// Current conditions (leaving now)
+	const nowOption = departureOptions[0];
+	const nowScore = nowOption.overallBikeRating.score;
+	
+	// Check for weather deterioration - look at next 3-4 hours for significant drops
+	let worseningFound = false;
+	let worseningTime = 0;
+	let worseningScore = nowScore;
+	
+	for (let i = 1; i < Math.min(departureOptions.length, 16); i++) { // Check next 4 hours (16 intervals)
+		const futureScore = departureOptions[i].overallBikeRating.score;
+		const scoreDrop = roundToDecimal(nowScore - futureScore);
+		
+		// Significant deterioration: >1.5 point drop from current conditions
+		if (scoreDrop >= 1.5) {
+			worseningFound = true;
+			worseningTime = i * 15;
+			worseningScore = futureScore;
+			break;
+		}
+	}
+	
+	// Calculate score difference and time to best conditions
+	const scoreDifference = roundToDecimal(bestScore - nowScore);
+	const minutesToBest = bestIndex * 15;
+	
+	let recommendation: string;
+	let reasoning: string;
+
+	// Priority 1: Warn about deteriorating conditions
+	if (worseningFound && nowScore >= 6.0) {
+		// Current conditions are decent but will get much worse
+		recommendation = `⚠️ Leave soon - weather deteriorating`;
+		reasoning = `Current conditions are good (${nowScore}/10) but will drop significantly to ${worseningScore}/10 in ${worseningTime} minutes`;
+	} else if (bestIndex === 0) {
+		// Best time is now
+		recommendation = "🚴‍♂️ Go Now!";
+		reasoning = `Current conditions are optimal. Score: ${nowScore}/10`;
+	} else if (scoreDifference < 0.5) {
+		// Very small improvement, not worth waiting
+		if (worseningFound) {
+			recommendation = "🚴‍♂️ Leave now - conditions will worsen";
+			reasoning = `Weather won't improve much (+${scoreDifference}) but will worsen to ${worseningScore}/10 in ${worseningTime}min`;
 		} else {
-			factors.push('Excellent biking weather!');
+			recommendation = "🚴‍♂️ Feel free to leave now";
+			reasoning = `Weather won't improve significantly. Current: ${nowScore}/10, best in ${minutesToBest}min: ${bestScore}/10 (+${scoreDifference})`;
+		}
+	} else if (scoreDifference >= 0.5 && scoreDifference < 1.5) {
+		// Moderate improvement
+		if (worseningFound && minutesToBest > worseningTime) {
+			recommendation = `⚠️ Leave now - weather will worsen before improving`;
+			reasoning = `Conditions drop to ${worseningScore}/10 in ${worseningTime}min before improving to ${bestScore}/10 in ${minutesToBest}min`;
+		} else {
+			recommendation = `🕒 Consider waiting ${minutesToBest} minutes`;
+			reasoning = `Weather will improve moderately. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)`;
+		}
+	} else {
+		// Significant improvement
+		if (worseningFound && minutesToBest > worseningTime) {
+			recommendation = `⚠️ Leave now or wait longer - weather will worsen first`;
+			reasoning = `Conditions drop to ${worseningScore}/10 in ${worseningTime}min before improving to ${bestScore}/10 in ${minutesToBest}min`;
+		} else {
+			recommendation = `⏰ I'd recommend waiting ${minutesToBest} minutes`;
+			reasoning = `Weather will improve significantly. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)`;
 		}
 	}
 
-	// "Leave now" bonus for any decent weather (score >= 7)
-	if (departureDelayMinutes === 0 && score >= 7) {
-		score += 0.3;
-		factors.push('No time like the present!');
-	}
-
-	return { score: Math.max(1, Math.min(10, score)), factors };
+	return {
+		bestIndex,
+		recommendation,
+		reasoning
+	};
 }
 
 async function generateRoutePoints(start: { lat: number; lng: number }, end: { lat: number; lng: number }): Promise<RouteWeatherPoint[]> {
@@ -364,7 +495,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						}
 					}
 					
-					const bikeRating = calculateBikeRating(closestWeather, i * 15); // i * 15 minutes delay
+					const bikeRating = calculateBikeRating(closestWeather);
 					
 					return {
 						location: {
@@ -397,7 +528,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			const weatherAlongRoute = await Promise.all(weatherPromises);
 			
 			// Calculate overall rating for this departure time
-			const avgScore = weatherAlongRoute.reduce((sum, point) => sum + point.bikeRating.score, 0) / weatherAlongRoute.length;
+			const avgScore = roundToDecimal(weatherAlongRoute.reduce((sum, point) => sum + point.bikeRating.score, 0) / weatherAlongRoute.length);
 			const allFactors = weatherAlongRoute.flatMap(point => point.bikeRating.factors);
 			const uniqueFactors = [...new Set(allFactors)];
 			
@@ -436,13 +567,16 @@ export const POST: RequestHandler = async ({ request }) => {
 				arrivalTime: arrivalTime.toISOString(),
 				weatherAlongRoute,
 				overallBikeRating: {
-					score: Math.round(avgScore * 10) / 10,
+					score: avgScore,
 					summary,
 					alerts
 				},
 				provider: usedProvider
 			});
 		}
+		
+		// Generate intelligent departure recommendation
+		const recommendation = generateDepartureRecommendation(departureOptions);
 		
 		const result = {
 			route: {
@@ -457,6 +591,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				lng: start.lng
 			},
 			departureOptions,
+			recommendation,
 			provider: usedProvider,
 			availableProviders: availableProviders.map(p => ({ id: p.id, name: p.name }))
 		};

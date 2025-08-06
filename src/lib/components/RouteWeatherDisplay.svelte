@@ -55,6 +55,11 @@
 				alerts: string[];
 			};
 		}>;
+		recommendation?: {
+			bestIndex: number;
+			recommendation: string;
+			reasoning: string;
+		};
 		provider?: string;
 	}
 
@@ -219,24 +224,20 @@
 	{/if}
 	
 	{#if routeWeatherData}
-		<!-- Best Time to Leave - Prominent Recommendation -->
-		{#if routeWeatherData.departureOptions.length > 0}
-			{@const bestOption = routeWeatherData.departureOptions.reduce((best, current) => 
-				current.overallBikeRating.score > best.overallBikeRating.score ? current : best
-			)}
-			{@const bestIndex = routeWeatherData.departureOptions.indexOf(bestOption)}
+		<!-- Intelligent Departure Recommendation -->
+		{#if routeWeatherData.recommendation && routeWeatherData.departureOptions.length > 0}
+			{@const bestOption = routeWeatherData.departureOptions[routeWeatherData.recommendation.bestIndex]}
 			
 			<Card>
 				<div class="text-center py-6">
 					<div class="{designSystem.typography.heading.recommendation} mb-4">
-						{#if bestIndex === 0}
-							🚴‍♂️ Go Now!
-						{:else}
-							🚴‍♂️ Go in {bestIndex * 15} minutes
-						{/if}
+						{routeWeatherData.recommendation.recommendation}
 					</div>
 					<div class="text-lg text-gray-600 mb-2">
-						Leave at {formatTime(bestOption.departureTime)} 
+						{routeWeatherData.recommendation.reasoning}
+					</div>
+					<div class="text-sm text-gray-500 mb-3">
+						Best conditions at {formatTime(bestOption.departureTime)}
 					</div>
 					<div class="inline-flex items-center px-4 py-2 rounded-full {getRatingColor(bestOption.overallBikeRating.score)} text-lg">
 						<span class="mr-2">{getRatingEmoji(bestOption.overallBikeRating.score)}</span>
@@ -249,12 +250,12 @@
 						</div>
 					{/if}
 					
-					<!-- Main recommendation rating factors -->
+					<!-- Best time rating factors -->
 					{#if bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors).length > 0}
 						{@const bestFactors = bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors)}
 						{@const bestUniqueFactors = [...new Set(bestFactors)]}
 						<div class="mt-4 text-xs text-gray-500 space-y-2">
-							<p class="font-medium text-gray-600">Why this time?</p>
+							<p class="font-medium text-gray-600">What makes this the best time?</p>
 							<div class="flex flex-wrap justify-center gap-1">
 								{#each bestUniqueFactors as factor}
 									<span class="px-2 py-1 bg-gray-100 rounded text-xs">
