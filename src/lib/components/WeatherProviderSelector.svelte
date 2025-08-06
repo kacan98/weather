@@ -1,13 +1,13 @@
-<script>
+<script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	
 	export let selectedProvider = 'weatherapi';
-	export let availableProviders = [];
+	export let availableProviders: any[] = [];
 	export let showComparison = false;
 	
 	const dispatch = createEventDispatcher();
 	
-	function handleProviderChange(providerId) {
+	function handleProviderChange(providerId: string) {
 		selectedProvider = providerId;
 		dispatch('providerChange', { providerId });
 	}

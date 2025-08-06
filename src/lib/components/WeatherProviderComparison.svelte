@@ -1,11 +1,11 @@
-<script>
-	export let comparisonData = {};
+<script lang="ts">
+	export let comparisonData: any = {};
 	export let location = { lat: 0, lon: 0, name: '' };
 	
 	$: providers = Object.keys(comparisonData.current || {});
 	$: errors = comparisonData.errors || {};
 	
-	function formatValue(value, unit = '') {
+	function formatValue(value: any, unit = '') {
 		if (value === null || value === undefined) return 'N/A';
 		if (typeof value === 'number') {
 			return `${value.toFixed(1)}${unit}`;

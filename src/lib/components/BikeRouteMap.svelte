@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import type * as L from 'leaflet';
 
 	interface Location {
 		lat: number;
@@ -20,7 +21,7 @@
 	export let weatherPoints: RoutePoint[] = [];
 
 	let mapContainer: HTMLDivElement;
-	let map: any;
+	let map: L.Map | null = null;
 	let routeLayer: any;
 	let weatherMarkers: any[] = [];
 	let leafletLoaded = false;
@@ -166,7 +167,7 @@
 			});
 			
 			leafletLoaded = true;
-			return window.L;
+			return (window as { L?: typeof L }).L;
 		} catch (error) {
 			console.error('Failed to load Leaflet:', error);
 			return null;
@@ -203,8 +204,8 @@
 	async function updateRoute() {
 		if (!map || !browser || !leafletLoaded) return;
 		
-		const L = window.L;
-		if (!L) return;
+		const LeafletLib = (window as { L?: typeof L }).L;
+		if (!LeafletLib) return;
 
 		console.log('Updating route...');
 
@@ -212,7 +213,7 @@
 		if (routeLayer) {
 			map.removeLayer(routeLayer);
 		}
-		weatherMarkers.forEach(marker => map.removeLayer(marker));
+		weatherMarkers.forEach(marker => map?.removeLayer(marker));
 		weatherMarkers = [];
 
 		// Fetch actual bike route
@@ -229,10 +230,10 @@
 		}
 		
 		// Draw route line
-		const routeCoords = route.map(point => [point.lat, point.lng]);
+		const routeCoords: L.LatLngTuple[] = route.map(point => [point.lat, point.lng] as L.LatLngTuple);
 		console.log('Route coordinates sample:', routeCoords.slice(0, 3));
 		
-		routeLayer = L.polyline(routeCoords, {
+		routeLayer = LeafletLib.polyline(routeCoords, {
 			color: '#3b82f6',
 			weight: 4,
 			opacity: 0.8
@@ -245,7 +246,7 @@
 			// Start marker
 			if (weatherPoints[0] && weatherPoints[0].weather && weatherPoints[0].bikeRating) {
 				const startWeather = weatherPoints[0];
-				const startMarker = L.circleMarker([route[0].lat, route[0].lng], {
+				const startMarker = LeafletLib.circleMarker([route[0].lat, route[0].lng], {
 					radius: 14,
 					fillColor: getRatingColor(startWeather.bikeRating.score),
 					color: '#fff',
@@ -285,7 +286,7 @@
 			if (weatherPoints.length > 1) {
 				const endWeather = weatherPoints[weatherPoints.length - 1];
 				if (endWeather && endWeather.weather && endWeather.bikeRating) {
-					const endMarker = L.circleMarker([route[route.length - 1].lat, route[route.length - 1].lng], {
+					const endMarker = LeafletLib.circleMarker([route[route.length - 1].lat, route[route.length - 1].lng], {
 						radius: 14,
 						fillColor: getRatingColor(endWeather.bikeRating.score),
 						color: '#fff',
@@ -336,7 +337,7 @@
 
 		// Fit map to route bounds
 		if (routeCoords.length > 0) {
-			map.fitBounds(routeCoords, { padding: [20, 20] });
+			map?.fitBounds(routeCoords as L.LatLngBoundsExpression, { padding: [20, 20] });
 		}
 	}
 
