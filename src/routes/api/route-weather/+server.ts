@@ -102,9 +102,19 @@ function calculateCyclingDistance(start: { lat: number; lng: number }, end: { la
 	return distance * 1.15;
 }
 
-function calculateBikeRating(weather: WeatherCondition): { score: number; factors: string[] } {
+function calculateBikeRating(weather: WeatherCondition, departureDelayMinutes: number = 0): { score: number; factors: string[] } {
 	let score = 10;
 	const factors: string[] = [];
+
+	// Time penalty: prefer leaving sooner rather than later
+	// Reduce score by 0.1 for every 15 minutes of delay (max penalty of 0.8 for 2 hours)
+	const timePenalty = Math.min(departureDelayMinutes / 15 * 0.1, 0.8);
+	if (timePenalty > 0) {
+		score -= timePenalty;
+		if (departureDelayMinutes >= 60) {
+			factors.push(`Better to leave sooner (+${Math.round(timePenalty * 10)/10} penalty)`);
+		}
+	}
 
 	// Temperature scoring
 	if (weather.temperature < -5) {
@@ -215,13 +225,24 @@ function calculateBikeRating(weather: WeatherCondition): { score: number; factor
 		factors.push('High UV - sun protection recommended');
 	}
 
-	// Perfect conditions bonus
+	// Perfect conditions bonus (extra bonus for leaving now)
 	if (weather.temperature >= 15 && weather.temperature <= 24 && 
 		weather.windSpeed < 10 && 
 		weather.rainChance < 10 && 
 		weather.precipitation === 0) {
-		score += 1;
-		factors.push('Excellent biking weather!');
+		const perfectBonus = departureDelayMinutes === 0 ? 1.5 : 1.0; // Extra bonus for leaving now
+		score += perfectBonus;
+		if (departureDelayMinutes === 0) {
+			factors.push('Perfect weather - go now!');
+		} else {
+			factors.push('Excellent biking weather!');
+		}
+	}
+
+	// "Leave now" bonus for any decent weather (score >= 7)
+	if (departureDelayMinutes === 0 && score >= 7) {
+		score += 0.3;
+		factors.push('No time like the present!');
 	}
 
 	return { score: Math.max(1, Math.min(10, score)), factors };
@@ -343,7 +364,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						}
 					}
 					
-					const bikeRating = calculateBikeRating(closestWeather);
+					const bikeRating = calculateBikeRating(closestWeather, i * 15); // i * 15 minutes delay
 					
 					return {
 						location: {
