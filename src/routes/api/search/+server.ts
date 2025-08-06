@@ -16,9 +16,9 @@ interface SearchResult {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	const { query }: SearchRequest = await request.json();
+	
 	try {
-		const { query }: SearchRequest = await request.json();
-
 		if (!query || query.trim().length < 2) {
 			return json({
 				success: true,

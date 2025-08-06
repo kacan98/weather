@@ -1,6 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { WEATHER_API_KEY } from '$env/static/private';
 import type { RequestHandler } from './$types';
+import { WeatherService } from '$lib/weather/weather-service';
+import type { WeatherCondition } from '$lib/weather/types';
 
 interface RouteWeatherRequest {
 	start: {
@@ -13,6 +15,7 @@ interface RouteWeatherRequest {
 	};
 	departureIntervals?: number; // How many 15-minute intervals to show (default: 8 = 2 hours)
 	estimatedTravelTimeMinutes?: number; // Estimated travel time in minutes (default: 30)
+	preferredProvider?: string; // Weather provider preference
 }
 
 interface RouteWeatherPoint {
@@ -35,10 +38,10 @@ interface DepartureOption {
 			time: string;
 			temp_c: number;
 			condition: string;
-			icon: string;
+			icon?: string;
 			wind_kph: number;
 			wind_dir: string;
-			wind_degree: number;
+			wind_degree?: number;
 			humidity: number;
 			precip_mm: number;
 			chance_of_rain: number;
@@ -56,6 +59,24 @@ interface DepartureOption {
 		summary: string;
 		alerts: string[];
 	};
+	provider?: string; // Which provider was used
+}
+
+// Initialize weather service
+const weatherService = new WeatherService();
+let weatherServiceInitialized = false;
+
+async function initializeWeatherService() {
+	if (weatherServiceInitialized) return;
+	
+	const configs: any = {};
+	
+	if (WEATHER_API_KEY) {
+		configs.weatherapi = { apiKey: WEATHER_API_KEY, priority: 1, enabled: true };
+	}
+	
+	await weatherService.initialize(configs);
+	weatherServiceInitialized = true;
 }
 
 function calculateCyclingDistance(start: { lat: number; lng: number }, end: { lat: number; lng: number }): number {
@@ -73,58 +94,51 @@ function calculateCyclingDistance(start: { lat: number; lng: number }, end: { la
 	return distance * 1.15;
 }
 
-function calculateBikeRating(weather: any): { score: number; factors: string[] } {
+function calculateBikeRating(weather: WeatherCondition): { score: number; factors: string[] } {
 	let score = 10;
 	const factors: string[] = [];
 
-	// Temperature scoring (improved ranges)
-	if (weather.temp_c < -5) {
+	// Temperature scoring
+	if (weather.temperature < -5) {
 		score -= 4;
 		factors.push('Dangerously cold');
-	} else if (weather.temp_c < 0) {
+	} else if (weather.temperature < 0) {
 		score -= 3;
 		factors.push('Very cold temperature');
-	} else if (weather.temp_c < 5) {
+	} else if (weather.temperature < 5) {
 		score -= 2;
 		factors.push('Cold temperature');
-	} else if (weather.temp_c < 10) {
+	} else if (weather.temperature < 10) {
 		score -= 1;
 		factors.push('Cool temperature');
-	} else if (weather.temp_c > 35) {
+	} else if (weather.temperature > 35) {
 		score -= 3;
 		factors.push('Dangerously hot');
-	} else if (weather.temp_c > 30) {
+	} else if (weather.temperature > 30) {
 		score -= 2;
 		factors.push('Very hot temperature');
-	} else if (weather.temp_c > 25) {
+	} else if (weather.temperature > 25) {
 		score -= 1;
 		factors.push('Hot temperature');
 	}
 
-	// Wind scoring (consider gusts too if available)
-	const effectiveWind = weather.gust_kph || weather.wind_kph;
-	if (effectiveWind > 40) {
+	// Wind scoring
+	if (weather.windSpeed > 40) {
 		score -= 4;
 		factors.push('Dangerous wind speeds');
-	} else if (effectiveWind > 30) {
+	} else if (weather.windSpeed > 30) {
 		score -= 3;
 		factors.push('Very strong wind');
-	} else if (effectiveWind > 20) {
+	} else if (weather.windSpeed > 20) {
 		score -= 2;
 		factors.push('Strong wind');
-	} else if (effectiveWind > 15) {
+	} else if (weather.windSpeed > 15) {
 		score -= 1;
 		factors.push('Moderate wind');
 	}
 
-	// Improved rain detection - check both precipitation and condition text
-	const conditionText = (weather.condition?.text || '').toLowerCase();
-	const isRaining = weather.precip_mm > 0 || 
-					  conditionText.includes('rain') || 
-					  conditionText.includes('drizzle') || 
-					  conditionText.includes('shower') ||
-					  conditionText.includes('thunderstorm');
-	
+	// Rain and precipitation
+	const conditionText = weather.condition.toLowerCase();
 	const isSnowing = conditionText.includes('snow') || 
 					  conditionText.includes('sleet') || 
 					  conditionText.includes('blizzard');
@@ -132,54 +146,54 @@ function calculateBikeRating(weather: any): { score: number; factors: string[] }
 	if (isSnowing) {
 		score -= 5;
 		factors.push('Snow/sleet conditions');
-	} else if (weather.precip_mm > 5 || conditionText.includes('heavy rain')) {
+	} else if (weather.precipitation > 5) {
 		score -= 4;
 		factors.push('Heavy rain');
-	} else if (weather.precip_mm > 2 || conditionText.includes('moderate rain')) {
+	} else if (weather.precipitation > 2) {
 		score -= 3;
 		factors.push('Moderate rain');
-	} else if (weather.precip_mm > 0.5 || isRaining) {
+	} else if (weather.precipitation > 0.5) {
 		score -= 2;
 		factors.push('Light rain');
-	} else if (weather.chance_of_rain > 80) {
+	} else if (weather.rainChance > 80) {
 		score -= 2;
 		factors.push('Very high chance of rain');
-	} else if (weather.chance_of_rain > 60) {
+	} else if (weather.rainChance > 60) {
 		score -= 1;
 		factors.push('High chance of rain');
-	} else if (weather.chance_of_rain > 40) {
+	} else if (weather.rainChance > 40) {
 		score -= 0.5;
 		factors.push('Moderate chance of rain');
 	}
 
-	// Visibility (adjusted thresholds)
-	if (weather.vis_km !== undefined && weather.vis_km < 0.5) {
+	// Visibility
+	if (weather.visibility < 0.5) {
 		score -= 4;
 		factors.push('Dangerous visibility');
-	} else if (weather.vis_km !== undefined && weather.vis_km < 1) {
+	} else if (weather.visibility < 1) {
 		score -= 3;
 		factors.push('Very poor visibility');
-	} else if (weather.vis_km !== undefined && weather.vis_km < 5) {
+	} else if (weather.visibility < 5) {
 		score -= 1;
 		factors.push('Reduced visibility');
 	}
 
-	// UV (for daytime rides)
-	if (weather.uv >= 11) {
+	// UV
+	if (weather.uvIndex >= 11) {
 		factors.push('Extreme UV - avoid if possible');
 		score -= 0.5;
-	} else if (weather.uv >= 8) {
+	} else if (weather.uvIndex >= 8) {
 		factors.push('Very high UV - wear sunscreen');
-	} else if (weather.uv >= 6) {
+	} else if (weather.uvIndex >= 6) {
 		factors.push('High UV - sun protection recommended');
 	}
 
 	// Perfect conditions bonus
-	if (weather.temp_c >= 15 && weather.temp_c <= 24 && 
-		effectiveWind < 10 && 
-		weather.chance_of_rain < 10 && 
-		weather.precip_mm === 0) {
-		score += 1; // Bonus point for perfect conditions
+	if (weather.temperature >= 15 && weather.temperature <= 24 && 
+		weather.windSpeed < 10 && 
+		weather.rainChance < 10 && 
+		weather.precipitation === 0) {
+		score += 1;
 		factors.push('Excellent biking weather!');
 	}
 
@@ -235,13 +249,18 @@ export const POST: RequestHandler = async ({ request }) => {
 			start, 
 			end, 
 			departureIntervals = 8, 
-			estimatedTravelTimeMinutes = 30 
+			estimatedTravelTimeMinutes = 30,
+			preferredProvider
 		}: RouteWeatherRequest = await request.json();
 		
-		if (!WEATHER_API_KEY) {
+		// Initialize weather service
+		await initializeWeatherService();
+		
+		const availableProviders = weatherService.getAvailableProviders();
+		if (availableProviders.length === 0) {
 			return json({
 				success: false,
-				error: 'Please set your WeatherAPI.com API key in environment variables'
+				error: 'No weather providers available. Please configure API keys.'
 			}, { status: 500 });
 		}
 		
@@ -253,36 +272,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 		
 		console.log(`Fetching route weather from ${start.lat},${start.lng} to ${end.lat},${end.lng}`);
+		console.log(`Available providers: ${availableProviders.map(p => p.name).join(', ')}`);
 		
 		// Generate points along the route
 		const routePoints = await generateRoutePoints(start, end);
-		
-		// Determine how many days of forecast we need
-		const currentTime = new Date();
-		const lastDepartureTime = new Date(currentTime.getTime() + ((departureIntervals - 1) * 15 * 60 * 1000));
-		const lastArrivalTime = new Date(lastDepartureTime.getTime() + (estimatedTravelTimeMinutes * 60 * 1000));
-		
-		// Calculate days needed (WeatherAPI needs at least 1, max 14)
-		const hoursNeeded = Math.ceil((lastArrivalTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60));
-		const daysNeeded = Math.min(14, Math.max(1, Math.ceil(hoursNeeded / 24)));
-		
-		console.log(`Fetching ${daysNeeded} days of forecast data for ${hoursNeeded} hours ahead`);
-		
-		// Get weather data for all route points with correct number of days
-		const weatherPromises = routePoints.map(async (point) => {
-			const weatherUrl = `https://api.weatherapi.com/v1/forecast.json?key=${WEATHER_API_KEY}&q=${point.lat},${point.lng}&days=${daysNeeded}&aqi=no&alerts=yes`;
-			const response = await fetch(weatherUrl);
-			
-			if (!response.ok) {
-				throw new Error(`Weather API error for point ${point.lat},${point.lng}: ${response.status}`);
-			}
-			
-			return response.json();
-		});
-		
-		const weatherDataArray = await Promise.all(weatherPromises);
-		
-		console.log(`Successfully fetched weather for ${weatherDataArray.length} points along the route`);
 		
 		// Calculate cycling distance
 		const distance = calculateCyclingDistance(start, end);
@@ -290,86 +283,70 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Generate departure options
 		const departureOptions: DepartureOption[] = [];
 		const now = new Date();
+		let usedProvider = '';
 		
 		for (let i = 0; i < departureIntervals; i++) {
 			const departureTime = new Date(now.getTime() + (i * 15 * 60 * 1000)); // 15 minutes intervals
 			const arrivalTime = new Date(departureTime.getTime() + (estimatedTravelTimeMinutes * 60 * 1000));
 			
-			// Calculate weather along route points using actual weather data for each point
-			const weatherAlongRoute = routePoints.map((point, index) => {
-				// Calculate the time for this point based on travel progress
+			// Get weather data for all route points
+			const weatherPromises = routePoints.map(async (point) => {
 				const pointTime = new Date(departureTime.getTime() + (estimatedTravelTimeMinutes * 60 * 1000 * point.progress));
 				
-				// Use the weather data for this specific point
-				const weatherData = weatherDataArray[index];
-				
-				// Find the correct forecast day and hour
-				let weather = null;
-				let foundWeather = false;
-				
-				// Search through forecast days to find the matching time
-				for (const forecastDay of weatherData.forecast.forecastday) {
-					// Parse the forecast date
-					const forecastDate = new Date(forecastDay.date);
+				try {
+					// Get hourly forecast and find the closest hour
+					const { data: hourlyForecast, provider } = await weatherService.getHourlyForecast(
+						point.lat, 
+						point.lng, 
+						Math.max(24, Math.ceil((pointTime.getTime() - now.getTime()) / (1000 * 60 * 60)) + 1),
+						preferredProvider
+					);
 					
-					// Check if our point time falls on this forecast day
-					if (pointTime.toDateString() === forecastDate.toDateString()) {
-						// Get the hour index for this day
-						const hourIndex = Math.min(23, Math.max(0, pointTime.getHours()));
-						weather = forecastDay.hour[hourIndex];
-						foundWeather = true;
-						break;
+					usedProvider = provider;
+					
+					// Find the closest weather data point to our desired time
+					let closestWeather = hourlyForecast[0];
+					let minTimeDiff = Math.abs(hourlyForecast[0].timestamp.getTime() - pointTime.getTime());
+					
+					for (const weather of hourlyForecast) {
+						const timeDiff = Math.abs(weather.timestamp.getTime() - pointTime.getTime());
+						if (timeDiff < minTimeDiff) {
+							minTimeDiff = timeDiff;
+							closestWeather = weather;
+						}
 					}
-				}
-				
-				// Fallback to current conditions if we can't find forecast data
-				if (!foundWeather) {
-					console.warn(`Could not find forecast for ${pointTime.toISOString()}, using current conditions`);
-					// Use current conditions as fallback
-					weather = {
-						time: weatherData.current.last_updated,
-						temp_c: weatherData.current.temp_c,
-						condition: weatherData.current.condition,
-						wind_kph: weatherData.current.wind_kph,
-						wind_dir: weatherData.current.wind_dir,
-						wind_degree: weatherData.current.wind_degree,
-						humidity: weatherData.current.humidity,
-						precip_mm: weatherData.current.precip_mm,
-						chance_of_rain: 0, // Current doesn't have this
-						feelslike_c: weatherData.current.feelslike_c,
-						uv: weatherData.current.uv,
-						vis_km: weatherData.current.vis_km,
-						gust_kph: weatherData.current.gust_kph
+					
+					const bikeRating = calculateBikeRating(closestWeather);
+					
+					return {
+						location: {
+							lat: point.lat,
+							lng: point.lng,
+							progress: point.progress
+						},
+						weather: {
+							time: closestWeather.timestamp.toISOString(),
+							temp_c: closestWeather.temperature,
+							condition: closestWeather.condition,
+							icon: closestWeather.icon,
+							wind_kph: closestWeather.windSpeed,
+							wind_dir: closestWeather.windDirection,
+							humidity: closestWeather.humidity,
+							precip_mm: closestWeather.precipitation,
+							chance_of_rain: closestWeather.rainChance,
+							feels_like_c: closestWeather.feelsLike,
+							uv: closestWeather.uvIndex,
+							visibility_km: closestWeather.visibility
+						},
+						bikeRating
 					};
+				} catch (error) {
+					console.error(`Failed to get weather for point ${point.lat},${point.lng}:`, error);
+					throw error;
 				}
-				
-				const bikeRating = calculateBikeRating(weather);
-				
-				return {
-					location: {
-						lat: point.lat,
-						lng: point.lng,
-						progress: point.progress
-					},
-					weather: {
-						time: weather.time,
-						temp_c: weather.temp_c,
-						condition: weather.condition?.text || weather.condition,
-						icon: weather.condition?.icon || '',
-						wind_kph: weather.wind_kph,
-						wind_dir: weather.wind_dir,
-						wind_degree: weather.wind_degree,
-						humidity: weather.humidity,
-						precip_mm: weather.precip_mm,
-						chance_of_rain: weather.chance_of_rain,
-						feels_like_c: weather.feelslike_c,
-						uv: weather.uv,
-						visibility_km: weather.vis_km,
-						gust_kph: weather.gust_kph || weather.wind_kph
-					},
-					bikeRating
-				};
 			});
+			
+			const weatherAlongRoute = await Promise.all(weatherPromises);
 			
 			// Calculate overall rating for this departure time
 			const avgScore = weatherAlongRoute.reduce((sum, point) => sum + point.bikeRating.score, 0) / weatherAlongRoute.length;
@@ -414,7 +391,8 @@ export const POST: RequestHandler = async ({ request }) => {
 					score: Math.round(avgScore * 10) / 10,
 					summary,
 					alerts
-				}
+				},
+				provider: usedProvider
 			});
 		}
 		
@@ -423,15 +401,16 @@ export const POST: RequestHandler = async ({ request }) => {
 				start: { lat: start.lat, lng: start.lng },
 				end: { lat: end.lat, lng: end.lng },
 				estimatedTravelTimeMinutes,
-				distance: Math.round(distance * 10) / 10 // Round to 1 decimal place
+				distance: Math.round(distance * 10) / 10
 			},
 			location: {
-				name: weatherDataArray[0].location.name, // Use start location name
-				country: weatherDataArray[0].location.country,
-				lat: weatherDataArray[0].location.lat,
-				lng: weatherDataArray[0].location.lon
+				name: `${start.lat.toFixed(2)}, ${start.lng.toFixed(2)}`,
+				lat: start.lat,
+				lng: start.lng
 			},
-			departureOptions
+			departureOptions,
+			provider: usedProvider,
+			availableProviders: availableProviders.map(p => ({ id: p.id, name: p.name }))
 		};
 		
 		return json({

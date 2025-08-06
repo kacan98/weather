@@ -4,6 +4,8 @@
 	import { page } from '$app/stores';
 	import RouteInput from '$lib/components/RouteInput.svelte';
 	import RouteWeatherDisplay from '$lib/components/RouteWeatherDisplay.svelte';
+	import WeatherProviderSelector from '$lib/components/WeatherProviderSelector.svelte';
+	import WeatherProviderComparison from '$lib/components/WeatherProviderComparison.svelte';
 	
 	interface Location {
 		lat: number;
@@ -18,6 +20,11 @@
 	let currentStep = 1; // 1: Input locations, 2: Show weather
 	let loading = false;
 	let distance = 0;
+	let initialLoad = true;
+	let selectedProvider = 'weatherapi';
+	let availableProviders: any[] = [];
+	let showComparison = false;
+	let comparisonData: any = {};
 	
 	// Load from URL parameters on mount
 	onMount(() => {
@@ -45,6 +52,9 @@
 				currentStep = 2;
 			}
 		}
+		
+		// Mark initial load as complete
+		initialLoad = false;
 	});
 	
 	// Calculate distance between two points (Haversine formula)
@@ -105,6 +115,33 @@
 		navigator.clipboard.writeText(window.location.href);
 		alert('Route link copied to clipboard! You can bookmark or share this link.');
 	}
+	
+	function handleProviderChange(event: any) {
+		selectedProvider = event.detail.providerId;
+	}
+	
+	async function handleToggleComparison(event: any) {
+		showComparison = event.detail.show;
+		
+		if (showComparison && start.lat && start.lng) {
+			try {
+				const response = await fetch('/api/weather-comparison', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ lat: start.lat, lon: start.lng })
+				});
+				
+				if (response.ok) {
+					const result = await response.json();
+					if (result.success) {
+						comparisonData = result.data;
+					}
+				}
+			} catch (error) {
+				console.error('Failed to fetch comparison data:', error);
+			}
+		}
+	}
 </script>
 
 <div class="min-h-screen bg-gray-100">
@@ -114,7 +151,16 @@
 			<p class="text-gray-600 text-sm">Find the perfect time to start your bike ride</p>
 		</header>
 		
-		{#if currentStep === 1}
+		{#if initialLoad && (new URLSearchParams(window?.location?.search).get('start_lat'))}
+			<!-- Loading screen for URL-based routes -->
+			<div class="max-w-2xl mx-auto text-center">
+				<div class="bg-white rounded-lg shadow-md p-8">
+					<div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+					<h2 class="text-xl font-semibold text-gray-800 mb-2">Loading Route</h2>
+					<p class="text-gray-600">Preparing your weather analysis...</p>
+				</div>
+			</div>
+		{:else if currentStep === 1}
 			<!-- Step 1: Location Input -->
 			<div class="max-w-2xl mx-auto">
 				<div class="text-center mb-6">
@@ -190,11 +236,32 @@
 				</div>
 			</div>
 			
+			<!-- Weather Provider Selection -->
+			<div class="mb-4">
+				<WeatherProviderSelector 
+					bind:selectedProvider
+					bind:availableProviders
+					bind:showComparison
+					on:providerChange={handleProviderChange}
+					on:toggleComparison={handleToggleComparison}
+				/>
+			</div>
+			
+			<!-- Provider Comparison -->
+			{#if showComparison}
+				<WeatherProviderComparison 
+					{comparisonData}
+					location={{ lat: start.lat, lon: start.lng, name: startName }}
+				/>
+			{/if}
+			
 			<RouteWeatherDisplay 
 				{start} 
 				{end} 
 				{estimatedTravelTimeMinutes}
+				{selectedProvider}
 				autoFetch={true}
+				bind:availableProviders
 			/>
 		{/if}
 		

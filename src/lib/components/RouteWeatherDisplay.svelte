@@ -58,6 +58,8 @@
 	export let end: Location;
 	export let estimatedTravelTimeMinutes: number = 30;
 	export let autoFetch: boolean = false;
+	export let selectedProvider = 'weatherapi';
+	export let availableProviders: any[] = [];
 
 	let routeWeatherData: RouteWeatherData | null = null;
 	let loading = false;
@@ -85,7 +87,8 @@
 					start,
 					end,
 					departureIntervals: 12, // Show 3 hours instead of 2
-					estimatedTravelTimeMinutes
+					estimatedTravelTimeMinutes,
+					preferredProvider: selectedProvider
 				})
 			});
 			
@@ -94,7 +97,13 @@
 			if (result.success) {
 				routeWeatherData = result.data;
 				selectedOptionIndex = 0;
-				console.log(`Successfully loaded weather data for ${result.data.departureOptions.length} departure times`);
+				
+				// Update available providers
+				if (result.data.availableProviders) {
+					availableProviders = result.data.availableProviders;
+				}
+				
+				console.log(`Successfully loaded weather data for ${result.data.departureOptions.length} departure times using ${result.data.provider}`);
 			} else {
 				error = result.error || 'Failed to fetch route weather data';
 				console.error('Route weather API error:', result.error);
@@ -144,8 +153,14 @@
 		return '🔴';
 	}
 
-	// Only auto-fetch when autoFetch is enabled and both locations are valid
-	$: if (autoFetch && start.lat && start.lng && end.lat && end.lng) {
+	let lastFetchKey = '';
+	
+	// Create a unique key to prevent infinite loops
+	$: fetchKey = `${start.lat}-${start.lng}-${end.lat}-${end.lng}-${selectedProvider}`;
+	
+	// Only auto-fetch when autoFetch is enabled and both locations are valid, and we haven't fetched this exact combination yet
+	$: if (autoFetch && start.lat && start.lng && end.lat && end.lng && fetchKey !== lastFetchKey && !loading) {
+		lastFetchKey = fetchKey;
 		fetchRouteWeather();
 	}
 </script>

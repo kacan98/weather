@@ -33,19 +33,15 @@
 - [ ] Add weather animation icons
 
 ## Modern Design (2025 Style)
+- [ ] Change the tab icon and title to something appropriate
 - [ ] Research modern design trends with Tailwind CSS
 - [ ] Implement glassmorphism effects (semi-transparent backgrounds with blur)
 - [ ] Add smooth animations and micro-interactions
 - [ ] Use modern color gradients and shadows
 - [ ] Implement dark mode with auto-detection
-- [ ] Add haptic-style feedback animations
 - [ ] Use modern typography and spacing
 - [ ] Add skeleton loaders for better perceived performance
 
 ## Additional Features
 - [ ] Add PWA support for mobile installation
-- [ ] Add notifications for optimal departure time
-- [ ] Export route to calendar
 - [ ] Share route with friends
-- [ ] Weather alerts and warnings
-- [ ] Route elevation profile integration
