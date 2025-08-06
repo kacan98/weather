@@ -69,6 +69,7 @@
 	export let autoFetch: boolean = false;
 	export let selectedProvider = 'weatherapi';
 	export let availableProviders: any[] = [];
+	export let preferredDepartureTime = ''; // HH:MM format
 
 	let routeWeatherData: RouteWeatherData | null = null;
 	let loading = false;
@@ -102,7 +103,8 @@
 					end,
 					departureIntervals: 20, // Show 5 hours (20 * 15min intervals)
 					estimatedTravelTimeMinutes,
-					preferredProvider: selectedProvider
+					preferredProvider: selectedProvider,
+					preferredDepartureTime
 				}),
 				signal: controller.signal
 			});

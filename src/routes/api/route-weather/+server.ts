@@ -16,6 +16,7 @@ interface RouteWeatherRequest {
 	departureIntervals?: number; // How many 15-minute intervals to show (default: 8 = 2 hours)
 	estimatedTravelTimeMinutes?: number; // Estimated travel time in minutes (default: 30)
 	preferredProvider?: string; // Weather provider preference
+	preferredDepartureTime?: string; // User's preferred departure time in HH:MM format
 }
 
 interface RouteWeatherPoint {
@@ -285,7 +286,7 @@ function calculateBikeRating(weather: WeatherCondition): { score: number; factor
 /**
  * Generate intelligent departure recommendation based on weather analysis
  */
-function generateDepartureRecommendation(departureOptions: DepartureOption[]): {
+function generateDepartureRecommendation(departureOptions: DepartureOption[], preferredDepartureTime?: string): {
 	bestIndex: number;
 	recommendation: string;
 	reasoning: string;
@@ -331,20 +332,86 @@ function generateDepartureRecommendation(departureOptions: DepartureOption[]): {
 	const scoreDifference = roundToDecimal(bestScore - nowScore);
 	const minutesToBest = bestIndex * 15;
 	
+	// Check user's preferred departure time if provided
+	let preferredIndex = -1;
+	let preferredScore = 0;
+	if (preferredDepartureTime) {
+		const now = new Date();
+		const [hours, minutes] = preferredDepartureTime.split(':').map(Number);
+		const preferredTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+		const minutesUntilPreferred = Math.max(0, Math.round((preferredTime.getTime() - now.getTime()) / (1000 * 60)));
+		preferredIndex = Math.floor(minutesUntilPreferred / 15);
+		
+		if (preferredIndex >= 0 && preferredIndex < departureOptions.length) {
+			preferredScore = departureOptions[preferredIndex].overallBikeRating.score;
+		}
+	}
+	
 	let recommendation: string;
 	let reasoning: string;
 
-	// Priority 1: Warn about deteriorating conditions
-	if (worseningFound && nowScore >= 6.0) {
-		// Current conditions are decent but will get much worse
+	// Helper function to describe what will improve
+	function getImprovementDetails(fromScore: number, toScore: number): string {
+		if (toScore - fromScore < 0.5) return '';
+		
+		const bestOption = departureOptions[bestIndex];
+		const nowOption = departureOptions[0];
+		const bestFactors = bestOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors);
+		const nowFactors = nowOption.weatherAlongRoute.flatMap(point => point.bikeRating.factors);
+		
+		// Find positive factors in best time that aren't in current time
+		const improvements = bestFactors.filter(factor => 
+			factor.includes('+') && !nowFactors.some(nf => nf.includes(factor.split(' ')[0]))
+		);
+		
+		// Find negative factors in current time that aren't in best time  
+		const reductions = nowFactors.filter(factor => 
+			factor.includes('-') && !bestFactors.some(bf => bf.includes(factor.split(' ')[0]))
+		);
+		
+		const changes = [];
+		if (improvements.length > 0) changes.push(`better: ${improvements[0]}`);
+		if (reductions.length > 0) changes.push(`avoiding: ${reductions[0]}`);
+		
+		return changes.length > 0 ? ` (${changes.join(', ')})` : '';
+	}
+
+	// Priority 1: User's preferred time considerations
+	if (preferredIndex >= 0) {
+		const preferredTimeDiff = roundToDecimal(preferredScore - nowScore);
+		const preferredVsBest = roundToDecimal(bestScore - preferredScore);
+		const minutesToPreferred = preferredIndex * 15;
+		
+		if (preferredIndex === bestIndex) {
+			// User's preferred time is the best time!
+			recommendation = `🎯 Perfect! Leave at your preferred time`;
+			reasoning = `Your preferred time (${preferredDepartureTime}) is optimal with a score of ${bestScore}/10`;
+		} else if (preferredScore >= nowScore + 1.0) {
+			// User's preferred time is significantly better than now
+			recommendation = `🕒 Wait for your preferred time`;
+			reasoning = `Your preferred time (${preferredDepartureTime}) is much better: ${preferredScore}/10 vs current ${nowScore}/10${getImprovementDetails(nowScore, preferredScore)}`;
+		} else if (preferredVsBest <= 0.5) {
+			// User's preferred time is close to the best
+			recommendation = `🕒 Your preferred time works well`;
+			reasoning = `Your time (${preferredDepartureTime}, ${preferredScore}/10) is nearly as good as the best (${bestScore}/10 in ${minutesToBest}min)`;
+		} else if (preferredScore < nowScore - 1.0) {
+			// User's preferred time is much worse than now
+			recommendation = `⚠️ I'd suggest leaving now instead`;
+			reasoning = `Your preferred time (${preferredDepartureTime}) would be worse: ${preferredScore}/10 vs current ${nowScore}/10. Best is ${bestScore}/10 in ${minutesToBest}min`;
+		} else {
+			// General case with user preference
+			recommendation = `🤔 Your time vs optimal: ${preferredScore}/10 vs ${bestScore}/10`;
+			reasoning = `Your preferred time (${preferredDepartureTime}): ${preferredScore}/10, optimal time (+${minutesToBest}min): ${bestScore}/10${getImprovementDetails(preferredScore, bestScore)}`;
+		}
+	}
+	// Priority 2: Warn about deteriorating conditions
+	else if (worseningFound && nowScore >= 6.0) {
 		recommendation = `⚠️ Leave soon - weather deteriorating`;
 		reasoning = `Current conditions are good (${nowScore}/10) but will drop significantly to ${worseningScore}/10 in ${worseningTime} minutes`;
 	} else if (bestIndex === 0) {
-		// Best time is now
 		recommendation = "🚴‍♂️ Go Now!";
 		reasoning = `Current conditions are optimal. Score: ${nowScore}/10`;
 	} else if (scoreDifference < 0.5) {
-		// Very small improvement, not worth waiting
 		if (worseningFound) {
 			recommendation = "🚴‍♂️ Leave now - conditions will worsen";
 			reasoning = `Weather won't improve much (+${scoreDifference}) but will worsen to ${worseningScore}/10 in ${worseningTime}min`;
@@ -353,22 +420,20 @@ function generateDepartureRecommendation(departureOptions: DepartureOption[]): {
 			reasoning = `Weather won't improve significantly. Current: ${nowScore}/10, best in ${minutesToBest}min: ${bestScore}/10 (+${scoreDifference})`;
 		}
 	} else if (scoreDifference >= 0.5 && scoreDifference < 1.5) {
-		// Moderate improvement
 		if (worseningFound && minutesToBest > worseningTime) {
 			recommendation = `⚠️ Leave now - weather will worsen before improving`;
 			reasoning = `Conditions drop to ${worseningScore}/10 in ${worseningTime}min before improving to ${bestScore}/10 in ${minutesToBest}min`;
 		} else {
 			recommendation = `🕒 Consider waiting ${minutesToBest} minutes`;
-			reasoning = `Weather will improve moderately. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)`;
+			reasoning = `Weather will improve moderately. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)${getImprovementDetails(nowScore, bestScore)}`;
 		}
 	} else {
-		// Significant improvement
 		if (worseningFound && minutesToBest > worseningTime) {
 			recommendation = `⚠️ Leave now or wait longer - weather will worsen first`;
 			reasoning = `Conditions drop to ${worseningScore}/10 in ${worseningTime}min before improving to ${bestScore}/10 in ${minutesToBest}min`;
 		} else {
 			recommendation = `⏰ I'd recommend waiting ${minutesToBest} minutes`;
-			reasoning = `Weather will improve significantly. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)`;
+			reasoning = `Weather will improve significantly. Current: ${nowScore}/10 → Best: ${bestScore}/10 (+${scoreDifference} improvement)${getImprovementDetails(nowScore, bestScore)}`;
 		}
 	}
 
@@ -429,7 +494,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			end, 
 			departureIntervals = 8, 
 			estimatedTravelTimeMinutes = 30,
-			preferredProvider
+			preferredProvider,
+			preferredDepartureTime
 		}: RouteWeatherRequest = await request.json();
 		
 		// Initialize weather service
@@ -576,7 +642,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 		
 		// Generate intelligent departure recommendation
-		const recommendation = generateDepartureRecommendation(departureOptions);
+		const recommendation = generateDepartureRecommendation(departureOptions, preferredDepartureTime);
 		
 		const result = {
 			route: {

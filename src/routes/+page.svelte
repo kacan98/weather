@@ -20,6 +20,7 @@
 	let end: Location = { lat: 0, lng: 0 };
 	let startName = '';
 	let endName = '';
+	let preferredDepartureTime = '';
 	let estimatedTravelTimeMinutes = 30;
 	let currentStep = 1; // 1: Input locations, 2: Show weather
 	let loading = false;
@@ -100,11 +101,12 @@
 	}
 	
 	function handleLocationUpdate(event: CustomEvent) {
-		const { start: newStart, end: newEnd, startName: newStartName, endName: newEndName } = event.detail;
+		const { start: newStart, end: newEnd, startName: newStartName, endName: newEndName, preferredDepartureTime: newPreferredTime } = event.detail;
 		start = newStart;
 		end = newEnd;
 		startName = newStartName;
 		endName = newEndName;
+		preferredDepartureTime = newPreferredTime || '';
 		updateURL();
 	}
 	
@@ -191,6 +193,7 @@
 						bind:end 
 						bind:startName
 						bind:endName
+						bind:preferredDepartureTime
 						on:update={handleLocationUpdate}
 					/>
 					
@@ -306,6 +309,7 @@
 					{end} 
 					{estimatedTravelTimeMinutes}
 					{selectedProvider}
+					{preferredDepartureTime}
 					autoFetch={true}
 					bind:availableProviders
 				/>

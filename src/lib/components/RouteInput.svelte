@@ -13,6 +13,7 @@
 	export let end: Location;
 	export let startName = '';
 	export let endName = '';
+	export let preferredDepartureTime = ''; // Format: HH:MM, empty means "now"
 	
 	const dispatch = createEventDispatcher();
 	let savedLocations: SavedLocation[] = [];
@@ -35,7 +36,7 @@
 		endName = tempName;
 		
 		// Emit update
-		dispatch('update', { start, end, startName, endName });
+		dispatch('update', { start, end, startName, endName, preferredDepartureTime });
 	}
 	
 	function handleStartSelect(event: CustomEvent) {
@@ -50,7 +51,7 @@
 		});
 		
 		// Emit update
-		dispatch('update', { start, end, startName, endName });
+		dispatch('update', { start, end, startName, endName, preferredDepartureTime });
 	}
 	
 	function handleEndSelect(event: CustomEvent) {
@@ -65,7 +66,7 @@
 		});
 		
 		// Emit update
-		dispatch('update', { start, end, startName, endName });
+		dispatch('update', { start, end, startName, endName, preferredDepartureTime });
 	}
 	
 	function selectSavedLocation(location: SavedLocation, isStart: boolean) {
@@ -90,7 +91,7 @@
 		});
 		
 		// Emit update
-		dispatch('update', { start, end, startName, endName });
+		dispatch('update', { start, end, startName, endName, preferredDepartureTime });
 	}
 	
 	function setAlias(alias: 'home' | 'work', location: { name: string; lat: number; lng: number }) {
@@ -199,8 +200,34 @@
 		</div>
 	</div>
 	
+	<!-- Preferred Departure Time -->
+	<div class="mt-4">
+		<label for="preferred-time" class="block text-sm font-medium text-gray-700 mb-2">
+			⏰ When would you like to leave? (optional)
+		</label>
+		<div class="flex items-center gap-3">
+			<input 
+				id="preferred-time"
+				type="time" 
+				bind:value={preferredDepartureTime}
+				on:change={() => dispatch('update', { start, end, startName, endName, preferredDepartureTime })}
+				class="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+			/>
+			<span class="text-sm text-gray-500">Leave empty for "now"</span>
+			{#if preferredDepartureTime}
+				<button
+					type="button"
+					on:click={() => { preferredDepartureTime = ''; dispatch('update', { start, end, startName, endName, preferredDepartureTime }); }}
+					class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+				>
+					Clear
+				</button>
+			{/if}
+		</div>
+	</div>
+	
 	{#if startName && endName}
-		<div class="flex items-center justify-center space-x-4 text-gray-700 bg-green-50 rounded-lg p-4 border border-green-200">
+		<div class="flex items-center justify-center space-x-4 text-gray-700 bg-green-50 rounded-lg p-4 border border-green-200 mt-4">
 			<span class="bg-green-100 px-3 py-1 rounded-full text-sm font-medium">
 				🏠 {startName.length > 25 ? startName.substring(0, 25) + '...' : startName}
 			</span>
